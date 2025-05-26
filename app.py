@@ -10,6 +10,9 @@ from dotenv import load_dotenv
 import matplotlib.pyplot as plt
 import io
 import base64
+import osmnx as ox
+import geopandas as gpd
+from shapely.geometry import box
 
 # Load environment variables
 load_dotenv()
@@ -27,54 +30,230 @@ if 'selected_area' not in st.session_state:
 if 'generated_maps' not in st.session_state:
     st.session_state.generated_maps = []
 
-def get_ai_analysis(area_bounds):
+def analyze_osm_area(area_bounds):
+    """Analyze the area using OpenStreetMap data"""
+    try:
+        # Create a bounding box
+        bbox = box(area_bounds['west'], area_bounds['south'], 
+                  area_bounds['east'], area_bounds['north'])
+        
+        # Get buildings
+        buildings = ox.geometries_from_bbox(
+            area_bounds['north'], area_bounds['south'],
+            area_bounds['east'], area_bounds['west'],
+            tags={'building': True}
+        )
+        
+        # Get streets
+        streets = ox.graph_from_bbox(
+            area_bounds['north'], area_bounds['south'],
+            area_bounds['east'], area_bounds['west'],
+            network_type='all'
+        )
+        
+        # Get natural features
+        natural = ox.geometries_from_bbox(
+            area_bounds['north'], area_bounds['south'],
+            area_bounds['east'], area_bounds['west'],
+            tags={'natural': True}
+        )
+        
+        # Get amenities
+        amenities = ox.geometries_from_bbox(
+            area_bounds['north'], area_bounds['south'],
+            area_bounds['east'], area_bounds['west'],
+            tags={'amenity': True}
+        )
+        
+        # Analyze the data
+        analysis = {
+            'area_size': bbox.area * 111319.9,  # Convert to square meters
+            'building_count': len(buildings),
+            'street_count': len(streets.edges),
+            'natural_features': {
+                'water': len(natural[natural['natural'] == 'water']),
+                'wood': len(natural[natural['natural'] == 'wood']),
+                'park': len(natural[natural['natural'] == 'park'])
+            },
+            'amenities': {
+                'commercial': len(amenities[amenities['amenity'].isin(['restaurant', 'cafe', 'shop'])]),
+                'public': len(amenities[amenities['amenity'].isin(['school', 'hospital', 'library'])]),
+                'leisure': len(amenities[amenities['amenity'].isin(['sports_centre', 'stadium', 'swimming_pool'])])
+            },
+            'street_types': {
+                'primary': len([e for e in streets.edges if streets.edges[e].get('highway') == 'primary']),
+                'secondary': len([e for e in streets.edges if streets.edges[e].get('highway') == 'secondary']),
+                'residential': len([e for e in streets.edges if streets.edges[e].get('highway') == 'residential'])
+            }
+        }
+        
+        return analysis
+    except Exception as e:
+        st.error(f"Error analyzing OSM data: {str(e)}")
+        return None
+
+def get_ai_analysis(area_bounds, osm_analysis):
     """Get AI analysis for the selected area using OpenRouter API"""
     OPENROUTER_API_KEY = os.getenv('OPENROUTER_API_KEY')
     
     prompt = f"""
-    You are a map visualization expert. Analyze this geographic area with bounds {area_bounds} and suggest PrettyMaps parameters.
-    Return ONLY a JSON array with exactly 3 objects, no other text. Each object must follow this exact structure:
+    You are a map visualization expert. Analyze this geographic area with the following characteristics:
 
+    Area Size: {osm_analysis['area_size']:.2f} square meters
+    Building Count: {osm_analysis['building_count']}
+    Street Count: {osm_analysis['street_count']}
+
+    Natural Features:
+    - Water bodies: {osm_analysis['natural_features']['water']}
+    - Woods: {osm_analysis['natural_features']['wood']}
+    - Parks: {osm_analysis['natural_features']['park']}
+
+    Amenities:
+    - Commercial: {osm_analysis['amenities']['commercial']}
+    - Public: {osm_analysis['amenities']['public']}
+    - Leisure: {osm_analysis['amenities']['leisure']}
+
+    Street Types:
+    - Primary: {osm_analysis['street_types']['primary']}
+    - Secondary: {osm_analysis['street_types']['secondary']}
+    - Residential: {osm_analysis['street_types']['residential']}
+
+    Based on these characteristics, suggest PrettyMaps parameters for three different map styles.
+    Return ONLY a JSON array with exactly 3 objects, no other text. Each object must follow this exact structure.
+
+    You can modify ALL of these parameters:
+
+    1. Layers (OSM data to fetch):
+       - perimeter: Boundary of the area
+       - streets: Road network with customizable widths
+       - waterway: Rivers and streams
+       - building: Buildings with customizable tags
+       - water: Water bodies
+       - sea: Sea areas
+       - forest: Forest areas
+       - green: Parks and green spaces
+       - rock: Rock formations
+       - beach: Beach areas
+       - parking: Parking areas
+       - hillshade: Terrain shading (optional)
+
+    2. Style Parameters for each layer:
+       - fc: Fill color
+       - ec: Edge color
+       - lw: Line width
+       - alpha: Transparency
+       - zorder: Drawing order
+       - hatch: Pattern (e.g., 'ooo...')
+       - hatch_c: Pattern color
+       - palette: Color palette for buildings
+
+    3. Global Parameters:
+       - circle: Whether to use circular boundary
+       - radius: Area radius in meters
+       - dilate: Boundary dilation amount
+       - figsize: Figure size (width, height)
+       - scale_x: X-axis scale
+       - scale_y: Y-axis scale
+       - adjust_aspect_ratio: Whether to adjust aspect ratio
+
+    4. Keypoints (optional):
+       - tags: OSM tags to highlight
+       - specific: Named locations to highlight
+
+    Example structure (modify the values, keep the structure):
     [
         {{
             "layers": {{
-                "building": {{"tags": {{"building": true}}}},
-                "streets": {{"width": {{"primary": 5, "secondary": 4, "residential": 3}}}}
+                "perimeter": {{}},
+                "streets": {{
+                    "width": {{
+                        "motorway": 6,
+                        "trunk": 5,
+                        "primary": 4.5,
+                        "secondary": 4,
+                        "tertiary": 3.5,
+                        "residential": 3,
+                        "path": 2
+                    }}
+                }},
+                "waterway": {{
+                    "tags": {{"waterway": ["river", "stream"]}},
+                    "width": {{"river": 20, "stream": 10}}
+                }},
+                "building": {{
+                    "tags": {{
+                        "building": true,
+                        "leisure": ["park", "garden"],
+                        "natural": ["wood", "water"]
+                    }}
+                }},
+                "water": {{
+                    "tags": {{"natural": ["water", "bay"]}}
+                }},
+                "green": {{
+                    "tags": {{
+                        "landuse": ["grass", "orchard"],
+                        "natural": ["island", "wood", "wetland"],
+                        "leisure": "park"
+                    }}
+                }}
             }},
             "style": {{
-                "building": {{"palette": ["#FF5733", "#33FF57"]}},
-                "streets": {{"fc": "#333333", "ec": "#666666"}}
+                "perimeter": {{
+                    "fill": false,
+                    "lw": 0,
+                    "zorder": 0
+                }},
+                "background": {{
+                    "fc": "#F2F4CB",
+                    "zorder": -1
+                }},
+                "green": {{
+                    "fc": "#8BB174",
+                    "ec": "#2F3737",
+                    "hatch_c": "#A7C497",
+                    "hatch": "ooo...",
+                    "lw": 1,
+                    "zorder": 1
+                }},
+                "water": {{
+                    "fc": "#a8e1e6",
+                    "ec": "#2F3737",
+                    "hatch_c": "#9bc3d4",
+                    "hatch": "ooo...",
+                    "lw": 1,
+                    "zorder": 99
+                }},
+                "streets": {{
+                    "fc": "#2F3737",
+                    "ec": "#475657",
+                    "alpha": 1,
+                    "lw": 0,
+                    "zorder": 4
+                }},
+                "building": {{
+                    "palette": ["#433633", "#FF5E5B"],
+                    "ec": "#2F3737",
+                    "lw": 0.5,
+                    "zorder": 5
+                }}
             }},
-            "radius": 1000
+            "circle": true,
+            "radius": 1500,
+            "dilate": 0,
+            "figsize": [12, 12],
+            "scale_x": 1,
+            "scale_y": 1,
+            "adjust_aspect_ratio": true,
+            "keypoints": {{
+                "tags": {{"natural": ["beach", "peak"]}},
+                "specific": {{
+                    "central park": {{"tags": {{"leisure": "park"}}}}
+                }}
+            }}
         }},
-        {{
-            "layers": {{
-                "building": {{"tags": {{"building": true}}}},
-                "streets": {{"width": {{"primary": 5, "secondary": 4, "residential": 3}}}}
-            }},
-            "style": {{
-                "building": {{"palette": ["#3357FF", "#FF33F6"]}},
-                "streets": {{"fc": "#333333", "ec": "#666666"}}
-            }},
-            "radius": 1000
-        }},
-        {{
-            "layers": {{
-                "building": {{"tags": {{"building": true}}}},
-                "streets": {{"width": {{"primary": 5, "secondary": 4, "residential": 3}}}}
-            }},
-            "style": {{
-                "building": {{"palette": ["#33FFF6", "#F6FF33"]}},
-                "streets": {{"fc": "#333333", "ec": "#666666"}}
-            }},
-            "radius": 1000
-        }}
+        // ... two more similar objects with different parameters
     ]
-
-    Focus on these aspects:
-    1. Urban features: buildings, streets, parks
-    2. Natural features: water bodies, green spaces
-    3. Street patterns: grid, organic, or mixed
 
     Return ONLY the JSON array, no other text or explanation.
     """
@@ -186,26 +365,43 @@ def main():
         with col2:
             if st.button("🎨 Generate Beautiful Maps", use_container_width=True):
                 with st.spinner("Analyzing area and generating maps..."):
-                    # Get AI analysis
-                    ai_params = get_ai_analysis(area_bounds)
+                    # First analyze the OSM data
+                    osm_analysis = analyze_osm_area(area_bounds)
                     
-                    if ai_params:
-                        # Generate maps for each parameter set
-                        for i, params in enumerate(ai_params):
-                            st.subheader(f"Map Style {i+1}")
-                            map_image = generate_map(area_bounds, params)
-                            
-                            if map_image:
-                                # Display the map
-                                st.image(map_image, use_column_width=True)
+                    if osm_analysis:
+                        # Show area analysis
+                        st.subheader("Area Analysis")
+                        col1, col2, col3 = st.columns(3)
+                        with col1:
+                            st.metric("Area Size", f"{osm_analysis['area_size']/1000000:.2f} km²")
+                            st.metric("Buildings", osm_analysis['building_count'])
+                        with col2:
+                            st.metric("Streets", osm_analysis['street_count'])
+                            st.metric("Water Bodies", osm_analysis['natural_features']['water'])
+                        with col3:
+                            st.metric("Parks", osm_analysis['natural_features']['park'])
+                            st.metric("Amenities", sum(osm_analysis['amenities'].values()))
+                        
+                        # Get AI analysis with OSM data
+                        ai_params = get_ai_analysis(area_bounds, osm_analysis)
+                        
+                        if ai_params:
+                            # Generate maps for each parameter set
+                            for i, params in enumerate(ai_params):
+                                st.subheader(f"Map Style {i+1}")
+                                map_image = generate_map(area_bounds, params)
                                 
-                                # Add download button
-                                btn = st.download_button(
-                                    label=f"Download Map {i+1}",
-                                    data=map_image,
-                                    file_name=f"pretty_map_{i+1}.png",
-                                    mime="image/png"
-                                )
+                                if map_image:
+                                    # Display the map
+                                    st.image(map_image, use_column_width=True)
+                                    
+                                    # Add download button
+                                    btn = st.download_button(
+                                        label=f"Download Map {i+1}",
+                                        data=map_image,
+                                        file_name=f"pretty_map_{i+1}.png",
+                                        mime="image/png"
+                                    )
     else:
         st.info("👆 Draw an area on the map to get started!")
 
