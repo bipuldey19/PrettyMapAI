@@ -109,6 +109,22 @@ def clean_json_string(json_str):
         # Replace single quotes with double quotes
         json_str = json_str.replace("'", '"')
         
+        # Replace 'NULL' with null
+        json_str = re.sub(r'\bNULL\b', 'null', json_str, flags=re.IGNORECASE)
+        
+        # Replace 'tag' with 'tags' (only as a key)
+        json_str = re.sub(r'"tag"\s*:', '"tags":', json_str)
+        
+        # Convert numeric-keyed dicts to lists (e.g., {"0": "river", "1": "stream"} -> ["river", "stream"])
+        def fix_numeric_keys(match):
+            items = match.group(1)
+            # Find all "number": value pairs
+            pairs = re.findall(r'"(\\d+)":\s*([\[\]{}"a-zA-Z0-9_.:-]+)', items)
+            values = [v.strip('"') for _, v in pairs]
+            return '[' + ', '.join(f'"{v}"' for v in values) + ']'
+        # Replace all dicts with only numeric keys with lists
+        json_str = re.sub(r'\{((?:\s*"\\d+":\s*[^,}]+,?)+)\}', fix_numeric_keys, json_str)
+        
         # Ensure property names are in double quotes
         json_str = re.sub(r'([{,])\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*:', r'\1"\2":', json_str)
         
