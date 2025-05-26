@@ -604,8 +604,8 @@ def main():
                             progress_container.error("❌ Failed to generate map styles. Please try again.")
                     else:
                         progress_container.error("❌ Failed to analyze area. Please try again.")
-    else:
-        st.info("👆 Draw an area on the map to get started!")
+        else:
+            st.info("👆 Draw an area on the map to get started!")
 
 if __name__ == "__main__":
     main() 
