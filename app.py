@@ -350,7 +350,7 @@ def get_ai_analysis(area_bounds, osm_analysis, user_prompt):
     
     try:
         # Show progress while waiting for AI response
-        st_notification_box(icon='info', textDisplay='🤖 Waiting for AI to generate map styles...', box_type='info')
+        st_notification_box(icon='info', textDisplay='🤖 Waiting for AI to generate map styles...')
         
         response = requests.post(
             "https://openrouter.ai/api/v1/chat/completions",
@@ -506,7 +506,7 @@ def main():
                 progress_container = st.container(border=True)
                 with progress_container:
                     # Initialize progress message
-                    st_notification_box(icon='info', textDisplay='Starting map generation process...', box_type='info')
+                    st_notification_box(icon='info', textDisplay='Starting map generation process...')
                     
                     # Extract bounds from the drawn area stored in session state
                     drawn_features = st.session_state.drawn_area
@@ -519,7 +519,7 @@ def main():
                     }
                     
                     # Step 1: Analyzing OSM data
-                    st_notification_box(icon='info', textDisplay='📊 Analyzing OpenStreetMap data...', box_type='info')
+                    st_notification_box(icon='info', textDisplay='📊 Analyzing OpenStreetMap data...')
                     osm_analysis = analyze_osm_area(area_bounds)
                     
                     if osm_analysis:
@@ -536,12 +536,12 @@ def main():
                                 st.metric("Amenities", sum(osm_analysis['amenities'].values()))
                         
                         # Step 2: Getting AI analysis
-                        st_notification_box(icon='info', textDisplay='🤖 Getting AI analysis for map styles...', box_type='info')
+                        st_notification_box(icon='info', textDisplay='🤖 Getting AI analysis for map styles...')
                         ai_params = get_ai_analysis(area_bounds, osm_analysis, user_prompt)
                         
                         if ai_params and len(ai_params) == 2:  # Now expecting 2 maps
                             # Step 3: Generating maps
-                            st_notification_box(icon='info', textDisplay='🎨 Generating beautiful maps...', box_type='info')
+                            st_notification_box(icon='info', textDisplay='🎨 Generating beautiful maps...')
                             
                             # Create two columns for the maps
                             map_cols = st.columns(2)
@@ -551,7 +551,7 @@ def main():
                                 with map_cols[i]:
                                     map_name = params.get('name', f"Map Style {i+1}")
                                     st.subheader(map_name)
-                                    st_notification_box(icon='info', textDisplay=f"Generating {map_name}...", box_type='info')
+                                    st_notification_box(icon='info', textDisplay=f"Generating {map_name}...")
                                     map_image = generate_map(area_bounds, params)
                                     
                                     if map_image:
@@ -568,11 +568,11 @@ def main():
                                         )
                             
                             # Clear progress message when done
-                            st_notification_box(icon='success', textDisplay='✨ Map generation complete! You can download your maps above.', box_type='success')
+                            st_notification_box(icon='success', textDisplay='✨ Map generation complete! You can download your maps above.')
                         else:
-                            st_notification_box(icon='error', textDisplay='❌ Failed to generate map styles. Please try again.', box_type='error')
+                            st_notification_box(icon='error', textDisplay='❌ Failed to generate map styles. Please try again.')
                     else:
-                        st_notification_box(icon='error', textDisplay='❌ Failed to analyze area. Please try again.', box_type='error')
+                        st_notification_box(icon='error', textDisplay='❌ Failed to analyze area. Please try again.')
         else:
             st.info("👆 Draw an area on the map to get started!")
 
