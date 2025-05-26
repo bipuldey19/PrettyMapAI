@@ -188,8 +188,13 @@ def get_ai_analysis(area_bounds, osm_analysis):
     """Get AI analysis for the selected area using OpenRouter API"""
     OPENROUTER_API_KEY = os.getenv('OPENROUTER_API_KEY')
     
+    system_message = """You are a map visualization expert. Your task is to generate exactly three different map styles for a given area.
+    You must always return a JSON array containing exactly three objects, each with a unique style.
+    Do not return any text before or after the JSON array.
+    Each style must be significantly different from the others in terms of colors, patterns, and visual elements."""
+    
     prompt = f"""
-    You are a map visualization expert. Analyze this geographic area with the following characteristics:
+    Generate exactly three different map styles for this geographic area:
 
     Area Size: {osm_analysis['area_size']:.2f} square meters
     Building Count: {osm_analysis['building_count']}
@@ -210,25 +215,29 @@ def get_ai_analysis(area_bounds, osm_analysis):
     - Secondary: {osm_analysis['street_types']['secondary']}
     - Residential: {osm_analysis['street_types']['residential']}
 
-    Based on these characteristics, suggest PrettyMaps parameters for three DIFFERENT map styles:
+    You must create three DISTINCT styles:
     1. A minimalist, clean style with subtle colors and thin lines
     2. A vibrant, artistic style with bold colors and patterns
     3. A vintage, hand-drawn style with textured elements
 
-    Return ONLY a JSON array with exactly 3 objects, no other text. Each object must follow this exact structure.
-    Make sure all property names and string values are enclosed in double quotes.
-    Do not include any comments or trailing commas.
-    Ensure proper comma placement between objects and key-value pairs.
-    Each object must be complete and valid JSON.
-    Make sure to include all required fields: name, layers, style, circle, radius, figsize, scale_x, scale_y, and adjust_aspect_ratio.
+    Each style must be significantly different from the others in terms of:
+    - Color palettes (use pastel for minimalist, vibrant for artistic, muted for vintage)
+    - Line weights (thin for minimalist, medium for artistic, bold for vintage)
+    - Patterns (none for minimalist, dots for artistic, crosshatch for vintage)
+    - Background colors (light for minimalist, colorful for artistic, textured for vintage)
+    - Building styles (simple for minimalist, detailed for artistic, textured for vintage)
+    - Street emphasis (subtle for minimalist, prominent for artistic, hand-drawn for vintage)
 
-    For each style, use different:
-    - Color palettes (pastel, vibrant, or muted)
-    - Line weights (thin, medium, or bold)
-    - Patterns (none, dots, or crosshatch)
-    - Background colors
-    - Building styles
-    - Street emphasis
+    Return ONLY a JSON array with exactly 3 objects. Each object must include:
+    - name: A short descriptive name for the style
+    - layers: All required layer configurations
+    - style: All style parameters
+    - circle: true/false
+    - radius: number
+    - figsize: [width, height]
+    - scale_x: number
+    - scale_y: number
+    - adjust_aspect_ratio: true/false
 
     Example structure (modify the values, keep the structure):
     [
@@ -335,7 +344,10 @@ def get_ai_analysis(area_bounds, osm_analysis):
     
     data = {
         "model": "deepseek/deepseek-chat-v3-0324:free",
-        "messages": [{"role": "user", "content": prompt}],
+        "messages": [
+            {"role": "system", "content": system_message},
+            {"role": "user", "content": prompt}
+        ],
         "temperature": 0.7,
         "stream": False  # Ensure we get the complete response
     }
