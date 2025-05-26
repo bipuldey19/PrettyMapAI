@@ -14,6 +14,7 @@ import osmnx as ox
 import geopandas as gpd
 from shapely.geometry import box
 import warnings
+from streamlit_custom_notification_box import custom_notification_box
 
 # Suppress specific warnings
 warnings.filterwarnings('ignore', category=FutureWarning)
@@ -102,7 +103,7 @@ def clean_json_string(json_str):
     try:
         # Remove any text before the first [ and after the last ]
         json_str = re.sub(r'^[^[]*\[', '[', json_str)
-        json_str = re.sub(r'\][^]]*$', ']', json_str)
+        json_str = re.sub(r'\][^\]]*$', ']', json_str)
         
         # Replace single quotes with double quotes
         json_str = json_str.replace("'", '"')
@@ -349,8 +350,7 @@ def get_ai_analysis(area_bounds, osm_analysis, user_prompt):
     
     try:
         # Show progress while waiting for AI response
-        progress = st.empty()
-        progress.info("🤖 Waiting for AI to generate map styles...")
+        custom_notification_box(icon='info', message='🤖 Waiting for AI to generate map styles...', box_type='info')
         
         response = requests.post(
             "https://openrouter.ai/api/v1/chat/completions",
@@ -417,7 +417,7 @@ def get_ai_analysis(area_bounds, osm_analysis, user_prompt):
         return None
     finally:
         # Clear the progress message
-        progress.empty()
+        pass # The custom notification box does not have an empty method
 
 def generate_map(area_bounds, params):
     """Generate a map using PrettyMaps with given parameters"""
@@ -501,8 +501,7 @@ def main():
                 progress_container = st.container(border=True)
                 with progress_container:
                     # Initialize progress message
-                    progress_message = progress_container.empty()
-                    progress_message.info("Starting map generation process...")
+                    custom_notification_box(icon='info', message='Starting map generation process...', box_type='info')
                     
                     # Extract bounds from the drawn area
                     drawn_features = map_data['last_active_drawing']
@@ -515,7 +514,7 @@ def main():
                     }
                     
                     # Step 1: Analyzing OSM data
-                    progress_message.info("📊 Analyzing OpenStreetMap data...")
+                    custom_notification_box(icon='info', message='📊 Analyzing OpenStreetMap data...', box_type='info')
                     osm_analysis = analyze_osm_area(area_bounds)
                     
                     if osm_analysis:
@@ -532,12 +531,12 @@ def main():
                                 st.metric("Amenities", sum(osm_analysis['amenities'].values()))
                         
                         # Step 2: Getting AI analysis
-                        progress_message.info("🤖 Getting AI analysis for map styles...")
+                        custom_notification_box(icon='info', message='🤖 Getting AI analysis for map styles...', box_type='info')
                         ai_params = get_ai_analysis(area_bounds, osm_analysis, user_prompt)
                         
                         if ai_params and len(ai_params) == 2:  # Now expecting 2 maps
                             # Step 3: Generating maps
-                            progress_message.info("🎨 Generating beautiful maps...")
+                            custom_notification_box(icon='info', message='🎨 Generating beautiful maps...', box_type='info')
                             
                             # Create two columns for the maps
                             map_cols = st.columns(2)
@@ -547,7 +546,7 @@ def main():
                                 with map_cols[i]:
                                     map_name = params.get('name', f"Map Style {i+1}")
                                     st.subheader(map_name)
-                                    progress_message.info(f"Generating {map_name}...")
+                                    custom_notification_box(icon='info', message=f"Generating {map_name}...", box_type='info')
                                     map_image = generate_map(area_bounds, params)
                                     
                                     if map_image:
@@ -564,11 +563,11 @@ def main():
                                         )
                             
                             # Clear progress message when done
-                            progress_message.success("✨ Map generation complete! You can download your maps above.")
+                            custom_notification_box(icon='success', message='✨ Map generation complete! You can download your maps above.', box_type='success')
                         else:
-                            progress_message.error("❌ Failed to generate map styles. Please try again.")
+                            custom_notification_box(icon='error', message='❌ Failed to generate map styles. Please try again.', box_type='error')
                     else:
-                        progress_message.error("❌ Failed to analyze area. Please try again.")
+                        custom_notification_box(icon='error', message='❌ Failed to analyze area. Please try again.', box_type='error')
         else:
             st.info("👆 Draw an area on the map to get started!")
 
