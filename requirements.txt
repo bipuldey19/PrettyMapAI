@@ -1,0 +1,10 @@
+streamlit
+prettymaps
+osmnx
+matplotlib
+shapely
+geopandas
+folium==0.15.2
+streamlit-folium
+requests
+python-dotenv
