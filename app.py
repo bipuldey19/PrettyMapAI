@@ -14,7 +14,6 @@ import osmnx as ox
 import geopandas as gpd
 from shapely.geometry import box
 import warnings
-import re
 from stqdm import stqdm
 
 # Suppress specific warnings
@@ -108,22 +107,6 @@ def clean_json_string(json_str):
         
         # Replace single quotes with double quotes
         json_str = json_str.replace("'", '"')
-        
-        # Replace 'NULL' with null
-        json_str = re.sub(r'\bNULL\b', 'null', json_str, flags=re.IGNORECASE)
-        
-        # Replace 'tag' with 'tags' (only as a key)
-        json_str = re.sub(r'"tag"\s*:', '"tags":', json_str)
-        
-        # Convert numeric-keyed dicts to lists (e.g., {"0": "river", "1": "stream"} -> ["river", "stream"])
-        def fix_numeric_keys(match):
-            items = match.group(1)
-            # Find all "number": value pairs
-            pairs = re.findall(r'"(\\d+)":\s*([\[\]{}"a-zA-Z0-9_.:-]+)', items)
-            values = [v.strip('"') for _, v in pairs]
-            return '[' + ', '.join(f'"{v}"' for v in values) + ']'
-        # Replace all dicts with only numeric keys with lists
-        json_str = re.sub(r'\{((?:\s*"\\d+":\s*[^,}]+,?)+)\}', fix_numeric_keys, json_str)
         
         # Ensure property names are in double quotes
         json_str = re.sub(r'([{,])\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*:', r'\1"\2":', json_str)
@@ -450,8 +433,7 @@ def generate_map(area_bounds, params):
             radius=params.get('radius', 1000),
             layers=params.get('layers', {}),
             style=params.get('style', {}),
-            figsize=(12, 12),
-            credit={}
+            figsize=(12, 12)
         )
         
         # Convert plot to image
@@ -461,8 +443,6 @@ def generate_map(area_bounds, params):
         return buf
     except Exception as e:
         st.error(f"Error generating map: {str(e)}")
-        st.write("Parameters used for map generation:")
-        st.json(params)
         return None
 
 def main():
@@ -508,16 +488,14 @@ def main():
     with prompt_container:
         user_prompt = st.text_area(
             "🎨 (Optional) Describe your preferred map style",
-            placeholder="Example: I want a vintage style map with warm colors and hand-drawn elements.",
+            placeholder="Example: I want a vintage style map with warm colors and hand-drawn elements",
             height=100
         )
         
         # Add a prominent button in full width
-        if st.button("🎨 Generate PrettyMaps", use_container_width=True):
-            # Only proceed if a drawn area is present
+        if st.button("🎨 Generate Beautiful Maps", use_container_width=True):
             if not map_data or not map_data.get('last_active_drawing'):
-                st.error("Please draw an area on the map first! The map is generated only from the area you draw, not from the search result.")
-                return
+                st.error("Please draw an area on the map first!")
             else:
                 # Create a progress container
                 progress_container = st.container(border=True)
@@ -526,7 +504,7 @@ def main():
                     progress_message = progress_container.empty()
                     progress_message.info("Starting map generation process...")
                     
-                    # Extract bounds from the drawn area (polygon/rectangle)
+                    # Extract bounds from the drawn area
                     drawn_features = map_data['last_active_drawing']
                     bounds = drawn_features['geometry']['coordinates'][0]
                     area_bounds = {
@@ -541,6 +519,18 @@ def main():
                     osm_analysis = analyze_osm_area(area_bounds)
                     
                     if osm_analysis:
+                        # Show area analysis in a more subtle way
+                        with st.expander("Area Analysis", expanded=False):
+                            cols = st.columns(2)
+                            with cols[0]:
+                                st.metric("Area Size", f"{osm_analysis['area_size']/1000000:.2f} km²")
+                                st.metric("Buildings", osm_analysis['building_count'])
+                                st.metric("Streets", osm_analysis['street_count'])
+                            with cols[1]:
+                                st.metric("Water Bodies", osm_analysis['natural_features']['water'])
+                                st.metric("Parks", osm_analysis['natural_features']['park'])
+                                st.metric("Amenities", sum(osm_analysis['amenities'].values()))
+                        
                         # Step 2: Getting AI analysis
                         progress_message.info("🤖 Getting AI analysis for map styles...")
                         ai_params = get_ai_analysis(area_bounds, osm_analysis, user_prompt)
@@ -552,12 +542,11 @@ def main():
                             # Create two columns for the maps
                             map_cols = st.columns(2)
                             
-                            # Generate maps for each parameter set
-                            for i, params in enumerate(ai_params):
+                            # Generate maps for each parameter set with progress bar
+                            for i, params in enumerate(stqdm(ai_params, desc="Generating maps")):
                                 with map_cols[i]:
                                     map_name = params.get('name', f"Map Style {i+1}")
                                     st.subheader(map_name)
-                                    progress_message.info(f"Generating {map_name}...")
                                     map_image = generate_map(area_bounds, params)
                                     
                                     if map_image:
