@@ -459,7 +459,9 @@ def main():
         Geocoder(
             position='topleft',
             placeholder='Search for a location...',
-            add_marker=False
+            add_marker=False,
+            collapsed=False,
+            search_zoom=13
         ).add_to(m)
         
         # Add drawing tools
@@ -475,8 +477,8 @@ def main():
         )
         draw.add_to(m)
         
-        # Display the map using st_folium with smaller size
-        map_data = st_folium(m, width=700, height=300)
+        # Display the map using st_folium with larger size
+        map_data = st_folium(m, width=700, height=500)
     
     # User prompt container
     prompt_container = st.container(border=True)
