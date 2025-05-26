@@ -420,7 +420,7 @@ def get_ai_analysis(area_bounds, osm_analysis, user_prompt):
         progress.empty()
 
 def generate_map(area_bounds, params):
-    """Generate a map using PrettyMaps with given parameters"""
+    """Generate a map using PrettyMaps with given parameters and remove copyright text."""
     try:
         # Calculate center point from bounds
         center_lat = (area_bounds['north'] + area_bounds['south']) / 2
@@ -435,6 +435,16 @@ def generate_map(area_bounds, params):
             figsize=(12, 12),
             credit={}
         )
+        
+        # Remove copyright/attribution text from the figure
+        ax = plot.fig.gca()
+        for text in ax.texts:
+            if (
+                '© OpenStreetMap' in text.get_text()
+                or 'prettymaps' in text.get_text()
+                or 'OpenStreetMap contributors' in text.get_text()
+            ):
+                text.set_visible(False)
         
         # Convert plot to image
         buf = io.BytesIO()
