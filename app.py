@@ -14,6 +14,7 @@ import osmnx as ox
 import geopandas as gpd
 from shapely.geometry import box
 import warnings
+import re
 
 # Suppress specific warnings
 warnings.filterwarnings('ignore', category=FutureWarning)
@@ -126,6 +127,7 @@ def get_ai_analysis(area_bounds, osm_analysis):
     Based on these characteristics, suggest PrettyMaps parameters for three different map styles.
     Return ONLY a JSON array with exactly 3 objects, no other text. Each object must follow this exact structure.
     Make sure all property names and string values are enclosed in double quotes.
+    Do not include any comments or trailing commas.
 
     Example structure (modify the values, keep the structure):
     [
@@ -247,27 +249,49 @@ def get_ai_analysis(area_bounds, osm_analysis):
         # Extract the content from the response
         content = response.json()['choices'][0]['message']['content'].strip()
         
+        def clean_json_string(json_str):
+            """Clean and fix common JSON formatting issues"""
+            # Remove any text before the first [ and after the last ]
+            json_str = re.sub(r'^[^[]*\[', '[', json_str)
+            json_str = re.sub(r'\][^]]*$', ']', json_str)
+            
+            # Replace single quotes with double quotes
+            json_str = json_str.replace("'", '"')
+            
+            # Ensure property names are in double quotes
+            json_str = re.sub(r'([{,])\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*:', r'\1"\2":', json_str)
+            
+            # Remove trailing commas
+            json_str = re.sub(r',\s*}', '}', json_str)
+            json_str = re.sub(r',\s*]', ']', json_str)
+            
+            # Fix boolean values
+            json_str = json_str.replace('true', 'true')
+            json_str = json_str.replace('false', 'false')
+            
+            return json_str
+        
         # Try to find JSON in the response
         try:
             # First try direct JSON parsing
             return json.loads(content)
         except json.JSONDecodeError:
             # If that fails, try to extract JSON from the text
-            import re
             json_match = re.search(r'\[.*\]', content, re.DOTALL)
             if json_match:
                 try:
+                    # Try parsing the extracted JSON
                     return json.loads(json_match.group())
                 except json.JSONDecodeError:
-                    # If still fails, try to fix common JSON formatting issues
-                    fixed_json = json_match.group()
-                    # Replace single quotes with double quotes
-                    fixed_json = fixed_json.replace("'", '"')
-                    # Ensure property names are in double quotes
-                    fixed_json = re.sub(r'([{,])\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*:', r'\1"\2":', fixed_json)
-                    return json.loads(fixed_json)
+                    # If still fails, try cleaning the JSON
+                    cleaned_json = clean_json_string(json_match.group())
+                    try:
+                        return json.loads(cleaned_json)
+                    except json.JSONDecodeError as e:
+                        st.error(f"Could not parse JSON after cleaning: {str(e)}")
+                        return None
             else:
-                st.error("Could not find valid JSON in the AI response")
+                st.error("Could not find JSON array in the AI response")
                 return None
                 
     except Exception as e:
