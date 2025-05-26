@@ -1,7 +1,7 @@
 import streamlit as st
 import prettymaps
 import folium
-from streamlit_folium import folium_static
+from streamlit_folium import st_folium
 from folium.plugins import Draw
 import json
 import requests
@@ -122,13 +122,13 @@ def main():
     )
     draw.add_to(m)
     
-    # Display the map
-    folium_static(m, width=800, height=600)
+    # Display the map using st_folium
+    map_data = st_folium(m, width=800, height=600)
     
-    # Get drawn features
-    drawn_features = st.session_state.get('drawn_features', None)
-    
-    if drawn_features:
+    # Add a button to generate maps
+    if map_data and map_data.get('last_active_drawing'):
+        drawn_features = map_data['last_active_drawing']
+        
         # Extract bounds from the drawn area
         bounds = drawn_features['geometry']['coordinates'][0]
         area_bounds = {
@@ -138,28 +138,33 @@ def main():
             'west': min(coord[0] for coord in bounds)
         }
         
-        if st.button("Generate Maps"):
-            with st.spinner("Analyzing area and generating maps..."):
-                # Get AI analysis
-                ai_params = get_ai_analysis(area_bounds)
-                
-                if ai_params:
-                    # Generate maps for each parameter set
-                    for i, params in enumerate(ai_params):
-                        st.subheader(f"Map Style {i+1}")
-                        map_image = generate_map(area_bounds, params)
-                        
-                        if map_image:
-                            # Display the map
-                            st.image(map_image, use_column_width=True)
+        # Add a prominent button
+        col1, col2, col3 = st.columns([1,2,1])
+        with col2:
+            if st.button("🎨 Generate Beautiful Maps", use_container_width=True):
+                with st.spinner("Analyzing area and generating maps..."):
+                    # Get AI analysis
+                    ai_params = get_ai_analysis(area_bounds)
+                    
+                    if ai_params:
+                        # Generate maps for each parameter set
+                        for i, params in enumerate(ai_params):
+                            st.subheader(f"Map Style {i+1}")
+                            map_image = generate_map(area_bounds, params)
                             
-                            # Add download button
-                            btn = st.download_button(
-                                label=f"Download Map {i+1}",
-                                data=map_image,
-                                file_name=f"pretty_map_{i+1}.png",
-                                mime="image/png"
-                            )
+                            if map_image:
+                                # Display the map
+                                st.image(map_image, use_column_width=True)
+                                
+                                # Add download button
+                                btn = st.download_button(
+                                    label=f"Download Map {i+1}",
+                                    data=map_image,
+                                    file_name=f"pretty_map_{i+1}.png",
+                                    mime="image/png"
+                                )
+    else:
+        st.info("👆 Draw an area on the map to get started!")
 
 if __name__ == "__main__":
     main() 
