@@ -482,6 +482,10 @@ def main():
         
         # Display the map using st_folium
         map_data = st_folium(m, width=700, height=500)
+
+        # Store the drawn area in session state if it exists
+        if map_data and map_data.get('last_active_drawing'):
+            st.session_state.drawn_area = map_data['last_active_drawing']
     
     # User prompt container
     prompt_container = st.container(border=True)
@@ -494,7 +498,8 @@ def main():
         
         # Add a prominent button in full width
         if st.button("🎨 Generate PrettyMaps", use_container_width=True):
-            if not map_data or not map_data.get('last_active_drawing'):
+            # Check if a drawn area exists in session state
+            if not st.session_state.get('drawn_area'):
                 st.error("Please draw an area on the map first!")
             else:
                 # Create a progress container
@@ -503,8 +508,8 @@ def main():
                     # Initialize progress message
                     custom_notification_box(icon='info', message='Starting map generation process...', box_type='info')
                     
-                    # Extract bounds from the drawn area
-                    drawn_features = map_data['last_active_drawing']
+                    # Extract bounds from the drawn area stored in session state
+                    drawn_features = st.session_state.drawn_area
                     bounds = drawn_features['geometry']['coordinates'][0]
                     area_bounds = {
                         'north': max(coord[1] for coord in bounds),
