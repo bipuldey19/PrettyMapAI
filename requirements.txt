@@ -4,7 +4,7 @@ osmnx
 matplotlib
 shapely
 geopandas
-folium==0.15.2
+folium
 streamlit-folium
 requests
 python-dotenv
