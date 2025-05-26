@@ -508,7 +508,7 @@ def main():
     with prompt_container:
         user_prompt = st.text_area(
             "🎨 (Optional) Describe your preferred map style",
-            placeholder="Example: I want a vintage style map with warm colors and hand-drawn elements",
+            placeholder="Example: I want a vintage style map with warm colors and hand-drawn elements.",
             height=100
         )
         
