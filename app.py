@@ -14,7 +14,6 @@ import osmnx as ox
 import geopandas as gpd
 from shapely.geometry import box
 import warnings
-from stqdm import stqdm
 
 # Suppress specific warnings
 warnings.filterwarnings('ignore', category=FutureWarning)
@@ -433,7 +432,8 @@ def generate_map(area_bounds, params):
             radius=params.get('radius', 1000),
             layers=params.get('layers', {}),
             style=params.get('style', {}),
-            figsize=(12, 12)
+            figsize=(12, 12),
+            credit={}
         )
         
         # Convert plot to image
@@ -493,7 +493,7 @@ def main():
         )
         
         # Add a prominent button in full width
-        if st.button("🎨 Generate Beautiful Maps", use_container_width=True):
+        if st.button("🎨 Generate PrettyMaps", use_container_width=True):
             if not map_data or not map_data.get('last_active_drawing'):
                 st.error("Please draw an area on the map first!")
             else:
@@ -542,11 +542,12 @@ def main():
                             # Create two columns for the maps
                             map_cols = st.columns(2)
                             
-                            # Generate maps for each parameter set with progress bar
-                            for i, params in enumerate(stqdm(ai_params, desc="Generating maps")):
+                            # Generate maps for each parameter set
+                            for i, params in enumerate(ai_params):
                                 with map_cols[i]:
                                     map_name = params.get('name', f"Map Style {i+1}")
                                     st.subheader(map_name)
+                                    progress_message.info(f"Generating {map_name}...")
                                     map_image = generate_map(area_bounds, params)
                                     
                                     if map_image:
