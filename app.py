@@ -324,14 +324,20 @@ def get_ai_analysis(area_bounds, osm_analysis):
         "model": "mistralai/mistral-7b-instruct",
         "messages": [{"role": "user", "content": prompt}],
         "temperature": 0.7,
-        "max_tokens": 1000
+        "max_tokens": 2000,  # Increased max tokens to ensure complete response
+        "stream": False  # Ensure we get the complete response
     }
     
     try:
+        # Show progress while waiting for AI response
+        progress = st.empty()
+        progress.info("🤖 Waiting for AI to generate map styles...")
+        
         response = requests.post(
             "https://openrouter.ai/api/v1/chat/completions",
             headers=headers,
-            json=data
+            json=data,
+            timeout=60  # 60 second timeout
         )
         response.raise_for_status()
         
@@ -369,9 +375,15 @@ def get_ai_analysis(area_bounds, osm_analysis):
                 st.code(content, language='text')
                 return None
                 
+    except requests.Timeout:
+        st.error("AI response timed out. Please try again.")
+        return None
     except Exception as e:
         st.error(f"Error getting AI analysis: {str(e)}")
         return None
+    finally:
+        # Clear the progress message
+        progress.empty()
 
 def generate_map(area_bounds, params):
     """Generate a map using PrettyMaps with given parameters"""
