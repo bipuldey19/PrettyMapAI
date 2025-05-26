@@ -457,7 +457,6 @@ def main():
         
         # Add Geocoder plugin for search functionality
         Geocoder(
-            position='topleft',
             placeholder='Search for a location...',
             add_marker=False,
             collapsed=False,
