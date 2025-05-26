@@ -191,7 +191,8 @@ def get_ai_analysis(area_bounds, osm_analysis, user_prompt):
     system_message = """You are a map visualization expert. Your task is to generate exactly two different map styles for a given area based on the user's description.
     You must always return a JSON array containing exactly two objects, each with a unique style.
     Do not return any text before or after the JSON array.
-    Each style must be significantly different from the other in terms of colors, patterns, and visual elements."""
+    Each style must be significantly different from the other in terms of colors, patterns, and visual elements.
+    Each style object MUST include all required fields: layers, style, circle, radius, figsize."""
     
     prompt = f"""
     Generate exactly two different map styles for this geographic area based on the user's description: "{user_prompt}"
@@ -224,7 +225,7 @@ def get_ai_analysis(area_bounds, osm_analysis, user_prompt):
     - Building styles
     - Street emphasis
 
-    Return ONLY a JSON array with exactly 2 objects. Each object must include:
+    Return ONLY a JSON array with exactly 2 objects. Each object MUST include:
     - name: A short descriptive name for the style
     - layers: All required layer configurations
     - style: All style parameters
@@ -320,13 +321,7 @@ def get_ai_analysis(area_bounds, osm_analysis, user_prompt):
             "figsize": [12, 12],
             "scale_x": 1,
             "scale_y": 1,
-            "adjust_aspect_ratio": true,
-            "keypoints": {{
-                "tags": {{"natural": ["beach", "peak"]}},
-                "specific": {{
-                    "central park": {{"tags": {{"leisure": "park"}}}}
-                }}
-            }}
+            "adjust_aspect_ratio": true
         }}
     ]
 
@@ -367,10 +362,24 @@ def get_ai_analysis(area_bounds, osm_analysis, user_prompt):
         try:
             # First try direct JSON parsing
             data = json.loads(content)
-            if not isinstance(data, list) or len(data) != 2:
-                st.error("AI response did not contain exactly 2 map styles")
+            if not isinstance(data, list):
+                st.error("AI response is not a JSON array")
                 st.code(content, language='json')
                 return None
+            if len(data) != 2:
+                st.error(f"AI response contains {len(data)} styles instead of exactly 2")
+                st.code(content, language='json')
+                return None
+            
+            # Validate each style object
+            required_fields = ['name', 'layers', 'style', 'circle', 'radius', 'figsize']
+            for i, style in enumerate(data):
+                missing_fields = [field for field in required_fields if field not in style]
+                if missing_fields:
+                    st.error(f"Style {i+1} is missing required fields: {', '.join(missing_fields)}")
+                    st.code(json.dumps(style, indent=2), language='json')
+                    return None
+            
             return data
         except json.JSONDecodeError:
             # If that fails, try to extract JSON from the text
@@ -379,10 +388,24 @@ def get_ai_analysis(area_bounds, osm_analysis, user_prompt):
                 try:
                     # Try parsing the extracted JSON
                     data = json.loads(json_match.group())
-                    if not isinstance(data, list) or len(data) != 2:
-                        st.error("AI response did not contain exactly 2 map styles")
+                    if not isinstance(data, list):
+                        st.error("Extracted JSON is not an array")
                         st.code(json_match.group(), language='json')
                         return None
+                    if len(data) != 2:
+                        st.error(f"Extracted JSON contains {len(data)} styles instead of exactly 2")
+                        st.code(json_match.group(), language='json')
+                        return None
+                    
+                    # Validate each style object
+                    required_fields = ['name', 'layers', 'style', 'circle', 'radius', 'figsize']
+                    for i, style in enumerate(data):
+                        missing_fields = [field for field in required_fields if field not in style]
+                        if missing_fields:
+                            st.error(f"Style {i+1} is missing required fields: {', '.join(missing_fields)}")
+                            st.code(json.dumps(style, indent=2), language='json')
+                            return None
+                    
                     return data
                 except json.JSONDecodeError:
                     # If still fails, try cleaning the JSON
@@ -390,10 +413,24 @@ def get_ai_analysis(area_bounds, osm_analysis, user_prompt):
                     if cleaned_json:
                         try:
                             data = json.loads(cleaned_json)
-                            if not isinstance(data, list) or len(data) != 2:
-                                st.error("AI response did not contain exactly 2 map styles")
+                            if not isinstance(data, list):
+                                st.error("Cleaned JSON is not an array")
                                 st.code(cleaned_json, language='json')
                                 return None
+                            if len(data) != 2:
+                                st.error(f"Cleaned JSON contains {len(data)} styles instead of exactly 2")
+                                st.code(cleaned_json, language='json')
+                                return None
+                            
+                            # Validate each style object
+                            required_fields = ['name', 'layers', 'style', 'circle', 'radius', 'figsize']
+                            for i, style in enumerate(data):
+                                missing_fields = [field for field in required_fields if field not in style]
+                                if missing_fields:
+                                    st.error(f"Style {i+1} is missing required fields: {', '.join(missing_fields)}")
+                                    st.code(json.dumps(style, indent=2), language='json')
+                                    return None
+                            
                             return data
                         except json.JSONDecodeError as e:
                             st.error(f"Could not parse JSON after cleaning: {str(e)}")
