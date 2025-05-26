@@ -11,5 +11,5 @@ requests
 python-dotenv
 numpy
 pandas
-streamlit-stqdm
+stqdm
 streamlit-searchbox
