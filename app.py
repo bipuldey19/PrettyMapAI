@@ -460,7 +460,7 @@ def main():
             placeholder='Search for a location...',
             add_marker=False,
             collapsed=False,
-            search_zoom=5
+            search_zoom=15
         ).add_to(m)
         
         # Add drawing tools
