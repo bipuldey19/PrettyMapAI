@@ -2,7 +2,7 @@ import streamlit as st
 import prettymaps
 import folium
 from streamlit_folium import st_folium
-from folium.plugins import Draw
+from folium.plugins import Draw, Geocoder
 import json
 import requests
 import os
@@ -505,19 +505,16 @@ def main():
     # Create containers with borders
     map_container = st.container(border=True)
     with map_container:
-        # Search functionality with streamlit-searchbox
-        selected_location = st_searchbox(
-            search_location,
-            placeholder="🔍 Search for a location...",
-            label="Location Search",
-            help="Enter a city, landmark, or coordinates",
-            key="location_search",
-            clear_on_submit=False,
-            edit_after_submit="current"
-        )
-        
         # Create a map centered on a default location
         m = folium.Map(location=[0, 0], zoom_start=2)
+        
+        # Add Geocoder plugin for search functionality
+        Geocoder(
+            position='topleft',
+            placeholder='Search for a location...',
+            add_marker=True,
+            popup=True
+        ).add_to(m)
         
         # Add drawing tools
         draw = Draw(
@@ -531,28 +528,6 @@ def main():
             }
         )
         draw.add_to(m)
-        
-        # If location is selected, update the map
-        if selected_location:
-            try:
-                # Extract coordinates from the selected location string
-                coords = re.findall(r'\(([-\d.]+),\s*([-\d.]+)\)', selected_location)
-                if coords:
-                    lat, lon = map(float, coords[0])
-                    # Update map center and zoom level
-                    m.location = [lat, lon]
-                    m.zoom_start = 15  # Increased zoom level for better detail
-                    
-                    # Add a marker at the selected location
-                    folium.Marker(
-                        [lat, lon],
-                        popup=selected_location.split(' (')[0],  # Show location name without coordinates
-                        icon=folium.Icon(color='red', icon='info-sign')
-                    ).add_to(m)
-                    
-                    st.success(f"Found location: {selected_location}")
-            except Exception as e:
-                st.error(f"Error updating map location: {str(e)}")
         
         # Display the map using st_folium with smaller size
         map_data = st_folium(m, width=700, height=300)
