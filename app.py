@@ -43,12 +43,6 @@ def analyze_osm_area(area_bounds):
         bbox = box(area_bounds['west'], area_bounds['south'], 
                   area_bounds['east'], area_bounds['north'])
         
-        # Calculate area using a simple approximation (in square meters)
-        # Convert degrees to meters at the equator (1 degree ≈ 111,319.9 meters)
-        width_meters = (area_bounds['east'] - area_bounds['west']) * 111319.9
-        height_meters = (area_bounds['north'] - area_bounds['south']) * 111319.9
-        area_size = width_meters * height_meters
-        
         # Get buildings
         buildings = ox.geometries_from_bbox(
             area_bounds['north'], area_bounds['south'],
@@ -79,7 +73,7 @@ def analyze_osm_area(area_bounds):
         
         # Analyze the data
         analysis = {
-            'area_size': area_size,  # Using our calculated area
+            'area_size': bbox.area * 111319.9,  # Convert to square meters
             'building_count': len(buildings),
             'street_count': len(streets.edges),
             'natural_features': {
