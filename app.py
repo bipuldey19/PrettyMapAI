@@ -33,26 +33,50 @@ def get_ai_analysis(area_bounds):
     
     prompt = f"""
     You are a map visualization expert. Analyze this geographic area with bounds {area_bounds} and suggest PrettyMaps parameters.
+    Return ONLY a JSON array with exactly 3 objects, no other text. Each object must follow this exact structure:
+
+    [
+        {{
+            "layers": {{
+                "building": {{"tags": {{"building": true}}}},
+                "streets": {{"width": {{"primary": 5, "secondary": 4, "residential": 3}}}}
+            }},
+            "style": {{
+                "building": {{"palette": ["#FF5733", "#33FF57"]}},
+                "streets": {{"fc": "#333333", "ec": "#666666"}}
+            }},
+            "radius": 1000
+        }},
+        {{
+            "layers": {{
+                "building": {{"tags": {{"building": true}}}},
+                "streets": {{"width": {{"primary": 5, "secondary": 4, "residential": 3}}}}
+            }},
+            "style": {{
+                "building": {{"palette": ["#3357FF", "#FF33F6"]}},
+                "streets": {{"fc": "#333333", "ec": "#666666"}}
+            }},
+            "radius": 1000
+        }},
+        {{
+            "layers": {{
+                "building": {{"tags": {{"building": true}}}},
+                "streets": {{"width": {{"primary": 5, "secondary": 4, "residential": 3}}}}
+            }},
+            "style": {{
+                "building": {{"palette": ["#33FFF6", "#F6FF33"]}},
+                "streets": {{"fc": "#333333", "ec": "#666666"}}
+            }},
+            "radius": 1000
+        }}
+    ]
 
     Focus on these aspects:
     1. Urban features: buildings, streets, parks
     2. Natural features: water bodies, green spaces
     3. Street patterns: grid, organic, or mixed
 
-    Return a JSON array with exactly 3 objects. Each object must have this structure:
-    {{
-        "layers": {{
-            "building": {{"tags": {{"building": true}}}},
-            "streets": {{"width": {{"primary": 5, "secondary": 4, "residential": 3}}}}
-        }},
-        "style": {{
-            "building": {{"palette": ["#color1", "#color2"]}},
-            "streets": {{"fc": "#color", "ec": "#color"}}
-        }},
-        "radius": number_in_meters
-    }}
-
-    Use simple, clear parameters that work well with PrettyMaps.
+    Return ONLY the JSON array, no other text or explanation.
     """
     
     headers = {
@@ -62,7 +86,9 @@ def get_ai_analysis(area_bounds):
     
     data = {
         "model": "mistralai/mistral-7b-instruct",
-        "messages": [{"role": "user", "content": prompt}]
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0.7,
+        "max_tokens": 1000
     }
     
     try:
@@ -72,7 +98,24 @@ def get_ai_analysis(area_bounds):
             json=data
         )
         response.raise_for_status()
-        return json.loads(response.json()['choices'][0]['message']['content'])
+        
+        # Extract the content from the response
+        content = response.json()['choices'][0]['message']['content'].strip()
+        
+        # Try to find JSON in the response
+        try:
+            # First try direct JSON parsing
+            return json.loads(content)
+        except json.JSONDecodeError:
+            # If that fails, try to extract JSON from the text
+            import re
+            json_match = re.search(r'\[.*\]', content, re.DOTALL)
+            if json_match:
+                return json.loads(json_match.group())
+            else:
+                st.error("Could not find valid JSON in the AI response")
+                return None
+                
     except Exception as e:
         st.error(f"Error getting AI analysis: {str(e)}")
         return None
