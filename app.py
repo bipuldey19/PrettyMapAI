@@ -125,45 +125,7 @@ def get_ai_analysis(area_bounds, osm_analysis):
 
     Based on these characteristics, suggest PrettyMaps parameters for three different map styles.
     Return ONLY a JSON array with exactly 3 objects, no other text. Each object must follow this exact structure.
-
-    You can modify ALL of these parameters:
-
-    1. Layers (OSM data to fetch):
-       - perimeter: Boundary of the area
-       - streets: Road network with customizable widths
-       - waterway: Rivers and streams
-       - building: Buildings with customizable tags
-       - water: Water bodies
-       - sea: Sea areas
-       - forest: Forest areas
-       - green: Parks and green spaces
-       - rock: Rock formations
-       - beach: Beach areas
-       - parking: Parking areas
-       - hillshade: Terrain shading (optional)
-
-    2. Style Parameters for each layer:
-       - fc: Fill color
-       - ec: Edge color
-       - lw: Line width
-       - alpha: Transparency
-       - zorder: Drawing order
-       - hatch: Pattern (e.g., 'ooo...')
-       - hatch_c: Pattern color
-       - palette: Color palette for buildings
-
-    3. Global Parameters:
-       - circle: Whether to use circular boundary
-       - radius: Area radius in meters
-       - dilate: Boundary dilation amount
-       - figsize: Figure size (width, height)
-       - scale_x: X-axis scale
-       - scale_y: Y-axis scale
-       - adjust_aspect_ratio: Whether to adjust aspect ratio
-
-    4. Keypoints (optional):
-       - tags: OSM tags to highlight
-       - specific: Named locations to highlight
+    Make sure all property names and string values are enclosed in double quotes.
 
     Example structure (modify the values, keep the structure):
     [
@@ -256,8 +218,7 @@ def get_ai_analysis(area_bounds, osm_analysis):
                     "central park": {{"tags": {{"leisure": "park"}}}}
                 }}
             }}
-        }},
-        // ... two more similar objects with different parameters
+        }}
     ]
 
     Return ONLY the JSON array, no other text or explanation.
@@ -295,7 +256,16 @@ def get_ai_analysis(area_bounds, osm_analysis):
             import re
             json_match = re.search(r'\[.*\]', content, re.DOTALL)
             if json_match:
-                return json.loads(json_match.group())
+                try:
+                    return json.loads(json_match.group())
+                except json.JSONDecodeError:
+                    # If still fails, try to fix common JSON formatting issues
+                    fixed_json = json_match.group()
+                    # Replace single quotes with double quotes
+                    fixed_json = fixed_json.replace("'", '"')
+                    # Ensure property names are in double quotes
+                    fixed_json = re.sub(r'([{,])\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*:', r'\1"\2":', fixed_json)
+                    return json.loads(fixed_json)
             else:
                 st.error("Could not find valid JSON in the AI response")
                 return None
@@ -376,14 +346,17 @@ def main():
                     osm_analysis = analyze_osm_area(area_bounds)
                     
                     if osm_analysis:
-                        # Show area analysis
-                        st.subheader("Area Analysis")
-                        st.metric("Area Size", f"{osm_analysis['area_size']/1000000:.2f} km²")
-                        st.metric("Buildings", osm_analysis['building_count'])
-                        st.metric("Streets", osm_analysis['street_count'])
-                        st.metric("Water Bodies", osm_analysis['natural_features']['water'])
-                        st.metric("Parks", osm_analysis['natural_features']['park'])
-                        st.metric("Amenities", sum(osm_analysis['amenities'].values()))
+                        # Show area analysis in a more subtle way
+                        with st.expander("Area Analysis", expanded=False):
+                            cols = st.columns(2)
+                            with cols[0]:
+                                st.metric("Area Size", f"{osm_analysis['area_size']/1000000:.2f} km²")
+                                st.metric("Buildings", osm_analysis['building_count'])
+                                st.metric("Streets", osm_analysis['street_count'])
+                            with cols[1]:
+                                st.metric("Water Bodies", osm_analysis['natural_features']['water'])
+                                st.metric("Parks", osm_analysis['natural_features']['park'])
+                                st.metric("Amenities", sum(osm_analysis['amenities'].values()))
                         
                         # Get AI analysis with OSM data
                         ai_params = get_ai_analysis(area_bounds, osm_analysis)
