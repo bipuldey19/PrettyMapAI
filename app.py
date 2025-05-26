@@ -13,6 +13,11 @@ import base64
 import osmnx as ox
 import geopandas as gpd
 from shapely.geometry import box
+import warnings
+
+# Suppress specific warnings
+warnings.filterwarnings('ignore', category=FutureWarning)
+warnings.filterwarnings('ignore', category=UserWarning)
 
 # Load environment variables
 load_dotenv()
@@ -328,41 +333,43 @@ def main():
     st.title("🗺️ PrettyMapAI")
     st.write("Draw an area on the map to generate beautiful visualizations using AI-powered PrettyMaps!")
     
-    # Create a map centered on a default location
-    m = folium.Map(location=[0, 0], zoom_start=2)
+    # Create two columns for the layout
+    col1, col2 = st.columns([2, 1])
     
-    # Add drawing tools
-    draw = Draw(
-        draw_options={
-            'polyline': False,
-            'polygon': True,
-            'circle': False,
-            'rectangle': True,
-            'marker': False,
-            'circlemarker': False,
-        }
-    )
-    draw.add_to(m)
-    
-    # Display the map using st_folium
-    map_data = st_folium(m, width=800, height=600)
-    
-    # Add a button to generate maps
-    if map_data and map_data.get('last_active_drawing'):
-        drawn_features = map_data['last_active_drawing']
+    with col1:
+        # Create a map centered on a default location
+        m = folium.Map(location=[0, 0], zoom_start=2)
         
-        # Extract bounds from the drawn area
-        bounds = drawn_features['geometry']['coordinates'][0]
-        area_bounds = {
-            'north': max(coord[1] for coord in bounds),
-            'south': min(coord[1] for coord in bounds),
-            'east': max(coord[0] for coord in bounds),
-            'west': min(coord[0] for coord in bounds)
-        }
+        # Add drawing tools
+        draw = Draw(
+            draw_options={
+                'polyline': False,
+                'polygon': True,
+                'circle': False,
+                'rectangle': True,
+                'marker': False,
+                'circlemarker': False,
+            }
+        )
+        draw.add_to(m)
         
-        # Add a prominent button
-        col1, col2, col3 = st.columns([1,2,1])
-        with col2:
+        # Display the map using st_folium
+        map_data = st_folium(m, width=600, height=400)
+    
+    with col2:
+        if map_data and map_data.get('last_active_drawing'):
+            drawn_features = map_data['last_active_drawing']
+            
+            # Extract bounds from the drawn area
+            bounds = drawn_features['geometry']['coordinates'][0]
+            area_bounds = {
+                'north': max(coord[1] for coord in bounds),
+                'south': min(coord[1] for coord in bounds),
+                'east': max(coord[0] for coord in bounds),
+                'west': min(coord[0] for coord in bounds)
+            }
+            
+            # Add a prominent button
             if st.button("🎨 Generate Beautiful Maps", use_container_width=True):
                 with st.spinner("Analyzing area and generating maps..."):
                     # First analyze the OSM data
@@ -371,16 +378,12 @@ def main():
                     if osm_analysis:
                         # Show area analysis
                         st.subheader("Area Analysis")
-                        col1, col2, col3 = st.columns(3)
-                        with col1:
-                            st.metric("Area Size", f"{osm_analysis['area_size']/1000000:.2f} km²")
-                            st.metric("Buildings", osm_analysis['building_count'])
-                        with col2:
-                            st.metric("Streets", osm_analysis['street_count'])
-                            st.metric("Water Bodies", osm_analysis['natural_features']['water'])
-                        with col3:
-                            st.metric("Parks", osm_analysis['natural_features']['park'])
-                            st.metric("Amenities", sum(osm_analysis['amenities'].values()))
+                        st.metric("Area Size", f"{osm_analysis['area_size']/1000000:.2f} km²")
+                        st.metric("Buildings", osm_analysis['building_count'])
+                        st.metric("Streets", osm_analysis['street_count'])
+                        st.metric("Water Bodies", osm_analysis['natural_features']['water'])
+                        st.metric("Parks", osm_analysis['natural_features']['park'])
+                        st.metric("Amenities", sum(osm_analysis['amenities'].values()))
                         
                         # Get AI analysis with OSM data
                         ai_params = get_ai_analysis(area_bounds, osm_analysis)
@@ -393,17 +396,18 @@ def main():
                                 
                                 if map_image:
                                     # Display the map
-                                    st.image(map_image, use_column_width=True)
+                                    st.image(map_image, use_container_width=True)
                                     
                                     # Add download button
                                     btn = st.download_button(
                                         label=f"Download Map {i+1}",
                                         data=map_image,
                                         file_name=f"pretty_map_{i+1}.png",
-                                        mime="image/png"
+                                        mime="image/png",
+                                        use_container_width=True
                                     )
-    else:
-        st.info("👆 Draw an area on the map to get started!")
+        else:
+            st.info("👆 Draw an area on the map to get started!")
 
 if __name__ == "__main__":
     main() 
