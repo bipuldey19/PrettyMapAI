@@ -443,6 +443,8 @@ def generate_map(area_bounds, params):
         return buf
     except Exception as e:
         st.error(f"Error generating map: {str(e)}")
+        st.write("Parameters used for map generation:")
+        st.json(params)
         return None
 
 def main():
@@ -519,18 +521,6 @@ def main():
                     osm_analysis = analyze_osm_area(area_bounds)
                     
                     if osm_analysis:
-                        # Show area analysis in a more subtle way
-                        with st.expander("Area Analysis", expanded=False):
-                            cols = st.columns(2)
-                            with cols[0]:
-                                st.metric("Area Size", f"{osm_analysis['area_size']/1000000:.2f} km²")
-                                st.metric("Buildings", osm_analysis['building_count'])
-                                st.metric("Streets", osm_analysis['street_count'])
-                            with cols[1]:
-                                st.metric("Water Bodies", osm_analysis['natural_features']['water'])
-                                st.metric("Parks", osm_analysis['natural_features']['park'])
-                                st.metric("Amenities", sum(osm_analysis['amenities'].values()))
-                        
                         # Step 2: Getting AI analysis
                         progress_message.info("🤖 Getting AI analysis for map styles...")
                         ai_params = get_ai_analysis(area_bounds, osm_analysis, user_prompt)
