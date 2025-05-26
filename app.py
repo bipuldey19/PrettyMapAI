@@ -446,6 +446,10 @@ def generate_map(area_bounds, params):
         return None
 
 def main():
+    # Load custom CSS
+    with open('static/style.css') as f:
+        st.write(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+        
     st.title("🗺️ PrettyMapAI")
     st.write("Search for a location or draw an area on the map to generate beautiful visualizations!")
     
@@ -476,7 +480,7 @@ def main():
         )
         draw.add_to(m)
         
-        # Display the map using st_folium with larger size
+        # Display the map using st_folium
         map_data = st_folium(m, width=700, height=500)
     
     # User prompt container

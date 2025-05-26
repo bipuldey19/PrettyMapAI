@@ -1,0 +1,4 @@
+/* Fix for blank space under the map */
+iframe[title="streamlit_folium.st_folium"] { 
+    height: 500px !important;
+} 
