@@ -449,15 +449,28 @@ def generate_map(area_bounds, params):
         return None
 
 def search_location(searchterm: str) -> list:
-    """Search function for the searchbox component"""
+    """Search function for the searchbox component using Nominatim API directly"""
     if not searchterm:
         return []
     
     try:
-        geolocator = Nominatim(user_agent="prettymapai")
-        locations = geolocator.geocode(searchterm, exactly_one=False, limit=5)
+        # Use Nominatim API directly
+        params = {
+            'q': searchterm,
+            'format': 'json',
+            'limit': 5,
+            'addressdetails': 1
+        }
+        response = requests.get('https://nominatim.openstreetmap.org/search', params=params)
+        response.raise_for_status()
+        
+        locations = response.json()
         if locations:
-            return [f"{loc.address} ({loc.latitude:.4f}, {loc.longitude:.4f})" for loc in locations]
+            # Format the results with more detailed information
+            return [
+                f"{loc.get('display_name', 'Unknown')} ({loc.get('lat', '0')}, {loc.get('lon', '0')})"
+                for loc in locations
+            ]
         return []
     except Exception as e:
         st.error(f"Error searching location: {str(e)}")
@@ -504,8 +517,17 @@ def main():
                 coords = re.findall(r'\(([-\d.]+),\s*([-\d.]+)\)', selected_location)
                 if coords:
                     lat, lon = map(float, coords[0])
+                    # Update map center and zoom level
                     m.location = [lat, lon]
-                    m.zoom_start = 13
+                    m.zoom_start = 15  # Increased zoom level for better detail
+                    
+                    # Add a marker at the selected location
+                    folium.Marker(
+                        [lat, lon],
+                        popup=selected_location.split(' (')[0],  # Show location name without coordinates
+                        icon=folium.Icon(color='red', icon='info-sign')
+                    ).add_to(m)
+                    
                     st.success(f"Found location: {selected_location}")
             except Exception as e:
                 st.error(f"Error updating map location: {str(e)}")
