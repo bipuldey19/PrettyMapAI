@@ -140,6 +140,37 @@ def clean_json_string(json_str):
         json_str = re.sub(r',\s*}', '}', json_str)  # Remove trailing commas before closing braces
         json_str = re.sub(r',\s*]', ']', json_str)  # Remove trailing commas before closing brackets
         
+        # Validate and fix incomplete JSON
+        if not json_str.endswith(']'):
+            # Find the last complete object
+            last_complete = json_str.rfind('}')
+            if last_complete != -1:
+                json_str = json_str[:last_complete + 1] + ']'
+        
+        # Ensure the JSON has the required structure
+        required_keys = ['layers', 'style', 'circle', 'radius', 'figsize']
+        try:
+            data = json.loads(json_str)
+            if not isinstance(data, list):
+                json_str = f'[{json_str}]'
+            data = json.loads(json_str)
+            
+            # Validate each object in the array
+            valid_objects = []
+            for obj in data:
+                if all(key in obj for key in required_keys):
+                    valid_objects.append(obj)
+            
+            if valid_objects:
+                return json.dumps(valid_objects)
+            else:
+                st.error("No valid objects found in JSON")
+                return None
+                
+        except json.JSONDecodeError:
+            st.error("Invalid JSON structure after cleaning")
+            return None
+            
         return json_str
     except Exception as e:
         st.error(f"Error cleaning JSON string: {str(e)}")
@@ -176,6 +207,7 @@ def get_ai_analysis(area_bounds, osm_analysis):
     Make sure all property names and string values are enclosed in double quotes.
     Do not include any comments or trailing commas.
     Ensure proper comma placement between objects and key-value pairs.
+    Each object must be complete and valid JSON.
 
     Example structure (modify the values, keep the structure):
     [
@@ -397,44 +429,60 @@ def main():
             
             # Add a prominent button
             if st.button("🎨 Generate Beautiful Maps", use_container_width=True):
-                with st.spinner("Analyzing area and generating maps..."):
-                    # First analyze the OSM data
-                    osm_analysis = analyze_osm_area(area_bounds)
+                # Create a progress container
+                progress_container = st.empty()
+                progress_container.info("Starting map generation process...")
+                
+                # Step 1: Analyzing OSM data
+                progress_container.info("📊 Analyzing OpenStreetMap data...")
+                osm_analysis = analyze_osm_area(area_bounds)
+                
+                if osm_analysis:
+                    # Show area analysis in a more subtle way
+                    with st.expander("Area Analysis", expanded=False):
+                        cols = st.columns(2)
+                        with cols[0]:
+                            st.metric("Area Size", f"{osm_analysis['area_size']/1000000:.2f} km²")
+                            st.metric("Buildings", osm_analysis['building_count'])
+                            st.metric("Streets", osm_analysis['street_count'])
+                        with cols[1]:
+                            st.metric("Water Bodies", osm_analysis['natural_features']['water'])
+                            st.metric("Parks", osm_analysis['natural_features']['park'])
+                            st.metric("Amenities", sum(osm_analysis['amenities'].values()))
                     
-                    if osm_analysis:
-                        # Show area analysis in a more subtle way
-                        with st.expander("Area Analysis", expanded=False):
-                            cols = st.columns(2)
-                            with cols[0]:
-                                st.metric("Area Size", f"{osm_analysis['area_size']/1000000:.2f} km²")
-                                st.metric("Buildings", osm_analysis['building_count'])
-                                st.metric("Streets", osm_analysis['street_count'])
-                            with cols[1]:
-                                st.metric("Water Bodies", osm_analysis['natural_features']['water'])
-                                st.metric("Parks", osm_analysis['natural_features']['park'])
-                                st.metric("Amenities", sum(osm_analysis['amenities'].values()))
+                    # Step 2: Getting AI analysis
+                    progress_container.info("🤖 Getting AI analysis for map styles...")
+                    ai_params = get_ai_analysis(area_bounds, osm_analysis)
+                    
+                    if ai_params:
+                        # Step 3: Generating maps
+                        progress_container.info("🎨 Generating beautiful maps...")
                         
-                        # Get AI analysis with OSM data
-                        ai_params = get_ai_analysis(area_bounds, osm_analysis)
-                        
-                        if ai_params:
-                            # Generate maps for each parameter set
-                            for i, params in enumerate(ai_params):
-                                st.subheader(f"Map Style {i+1}")
-                                map_image = generate_map(area_bounds, params)
+                        # Generate maps for each parameter set
+                        for i, params in enumerate(ai_params):
+                            progress_container.info(f"🎨 Generating map style {i+1}/3...")
+                            st.subheader(f"Map Style {i+1}")
+                            map_image = generate_map(area_bounds, params)
+                            
+                            if map_image:
+                                # Display the map
+                                st.image(map_image, use_container_width=True)
                                 
-                                if map_image:
-                                    # Display the map
-                                    st.image(map_image, use_container_width=True)
-                                    
-                                    # Add download button
-                                    btn = st.download_button(
-                                        label=f"Download Map {i+1}",
-                                        data=map_image,
-                                        file_name=f"pretty_map_{i+1}.png",
-                                        mime="image/png",
-                                        use_container_width=True
-                                    )
+                                # Add download button
+                                btn = st.download_button(
+                                    label=f"Download Map {i+1}",
+                                    data=map_image,
+                                    file_name=f"pretty_map_{i+1}.png",
+                                    mime="image/png",
+                                    use_container_width=True
+                                )
+                        
+                        # Clear progress message when done
+                        progress_container.success("✨ Map generation complete! You can download your maps above.")
+                    else:
+                        progress_container.error("❌ Failed to get AI analysis. Please try again.")
+                else:
+                    progress_container.error("❌ Failed to analyze area. Please try again.")
         else:
             st.info("👆 Draw an area on the map to get started!")
 
