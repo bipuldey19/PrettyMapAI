@@ -165,15 +165,18 @@ def clean_json_string(json_str):
                 return json.dumps(valid_objects)
             else:
                 st.error("No valid objects found in JSON")
+                st.code(json_str, language='json')
                 return None
                 
-        except json.JSONDecodeError:
-            st.error("Invalid JSON structure after cleaning")
+        except json.JSONDecodeError as e:
+            st.error(f"Invalid JSON structure after cleaning: {str(e)}")
+            st.code(json_str, language='json')
             return None
             
         return json_str
     except Exception as e:
         st.error(f"Error cleaning JSON string: {str(e)}")
+        st.code(json_str, language='json')
         return None
 
 def get_ai_analysis(area_bounds, osm_analysis):
@@ -353,9 +356,11 @@ def get_ai_analysis(area_bounds, osm_analysis):
                             return None
                     else:
                         st.error("Failed to clean JSON string")
+                        st.code(json_match.group(), language='json')
                         return None
             else:
                 st.error("Could not find JSON array in the AI response")
+                st.code(content, language='text')
                 return None
                 
     except Exception as e:
