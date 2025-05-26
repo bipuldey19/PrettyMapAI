@@ -201,19 +201,19 @@ def get_ai_analysis(area_bounds, osm_analysis, user_prompt):
     Street Count: {osm_analysis.get('street_count', 0)}
 
     Natural Features:
-    - Water bodies: {osm_analysis.get('natural_features', {{}}).get('water', 0)}
-    - Woods: {osm_analysis.get('natural_features', {{}}).get('wood', 0)}
-    - Parks: {osm_analysis.get('natural_features', {{}}).get('park', 0)}
+    - Water bodies: {osm_analysis.get('natural_features', {}).get('water', 0)}
+    - Woods: {osm_analysis.get('natural_features', {}).get('wood', 0)}
+    - Parks: {osm_analysis.get('natural_features', {}).get('park', 0)}
 
     Amenities:
-    - Commercial: {osm_analysis.get('amenities', {{}}).get('commercial', 0)}
-    - Public: {osm_analysis.get('amenities', {{}}).get('public', 0)}
-    - Leisure: {osm_analysis.get('amenities', {{}}).get('leisure', 0)}
+    - Commercial: {osm_analysis.get('amenities', {}).get('commercial', 0)}
+    - Public: {osm_analysis.get('amenities', {}).get('public', 0)}
+    - Leisure: {osm_analysis.get('amenities', {}).get('leisure', 0)}
 
     Street Types:
-    - Primary: {osm_analysis.get('street_types', {{}}).get('primary', 0)}
-    - Secondary: {osm_analysis.get('street_types', {{}}).get('secondary', 0)}
-    - Residential: {osm_analysis.get('street_types', {{}}).get('residential', 0)}
+    - Primary: {osm_analysis.get('street_types', {}).get('primary', 0)}
+    - Secondary: {osm_analysis.get('street_types', {}).get('secondary', 0)}
+    - Residential: {osm_analysis.get('street_types', {}).get('residential', 0)}
 
     Create two DISTINCT styles that best match the user's description while being different from each other.
     Consider different approaches to:
