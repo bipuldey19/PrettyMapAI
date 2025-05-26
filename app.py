@@ -513,7 +513,7 @@ def main():
         """, unsafe_allow_html=True)
         
         user_prompt = st.text_area(
-            "🎨 Describe how you want your map to look",
+            "🎨 (Optional) Describe how you want your map to look",
             placeholder="Example: I want a vintage style map with warm colors and hand-drawn elements",
             height=100
         )
@@ -522,8 +522,6 @@ def main():
         if st.button("🎨 Generate Beautiful Maps", use_container_width=True):
             if not map_data or not map_data.get('last_active_drawing'):
                 st.error("Please draw an area on the map first!")
-            elif not user_prompt:
-                st.error("Please describe how you want your map to look!")
             else:
                 # Create a progress container
                 progress_container = st.container()
@@ -607,7 +605,7 @@ def main():
                     else:
                         progress_container.error("❌ Failed to analyze area. Please try again.")
     else:
-        st.info("👆 Draw an area on the map and describe your desired style to get started!")
+        st.info("👆 Draw an area on the map to get started!")
 
 if __name__ == "__main__":
     main() 
