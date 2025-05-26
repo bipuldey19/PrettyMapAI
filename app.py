@@ -140,12 +140,17 @@ def clean_json_string(json_str):
         json_str = re.sub(r',\s*}', '}', json_str)  # Remove trailing commas before closing braces
         json_str = re.sub(r',\s*]', ']', json_str)  # Remove trailing commas before closing brackets
         
-        # Validate and fix incomplete JSON
-        if not json_str.endswith(']'):
-            # Find the last complete object
-            last_complete = json_str.rfind('}')
-            if last_complete != -1:
-                json_str = json_str[:last_complete + 1] + ']'
+        # Count opening and closing brackets to fix incomplete JSON
+        open_braces = json_str.count('{')
+        close_braces = json_str.count('}')
+        open_brackets = json_str.count('[')
+        close_brackets = json_str.count(']')
+        
+        # Add missing closing brackets
+        if open_braces > close_braces:
+            json_str += '}' * (open_braces - close_braces)
+        if open_brackets > close_brackets:
+            json_str += ']' * (open_brackets - close_brackets)
         
         # Ensure the JSON has the required structure
         required_keys = ['layers', 'style', 'circle', 'radius', 'figsize']
@@ -211,6 +216,7 @@ def get_ai_analysis(area_bounds, osm_analysis):
     Do not include any comments or trailing commas.
     Ensure proper comma placement between objects and key-value pairs.
     Each object must be complete and valid JSON.
+    Make sure to include all required fields: layers, style, circle, radius, figsize, scale_x, scale_y, and adjust_aspect_ratio.
 
     Example structure (modify the values, keep the structure):
     [
