@@ -98,6 +98,53 @@ def analyze_osm_area(area_bounds):
         st.error(f"Error analyzing OSM data: {str(e)}")
         return None
 
+def clean_json_string(json_str):
+    """Clean and fix common JSON formatting issues"""
+    try:
+        # Remove any text before the first [ and after the last ]
+        json_str = re.sub(r'^[^[]*\[', '[', json_str)
+        json_str = re.sub(r'\][^]]*$', ']', json_str)
+        
+        # Replace single quotes with double quotes
+        json_str = json_str.replace("'", '"')
+        
+        # Ensure property names are in double quotes
+        json_str = re.sub(r'([{,])\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*:', r'\1"\2":', json_str)
+        
+        # Remove trailing commas
+        json_str = re.sub(r',\s*}', '}', json_str)
+        json_str = re.sub(r',\s*]', ']', json_str)
+        
+        # Fix boolean values
+        json_str = json_str.replace('true', 'true')
+        json_str = json_str.replace('false', 'false')
+        
+        # Fix missing commas between objects in arrays
+        json_str = re.sub(r'}\s*{', '},{', json_str)
+        
+        # Fix missing commas between key-value pairs
+        json_str = re.sub(r'"\s*"\s*:', '",":', json_str)
+        
+        # Remove any whitespace between brackets and content
+        json_str = re.sub(r'{\s+', '{', json_str)
+        json_str = re.sub(r'\s+}', '}', json_str)
+        json_str = re.sub(r'\[\s+', '[', json_str)
+        json_str = re.sub(r'\s+\]', ']', json_str)
+        
+        # Ensure proper array formatting
+        json_str = re.sub(r'\[\s*\]', '[]', json_str)
+        json_str = re.sub(r'{\s*}', '{}', json_str)
+        
+        # Fix any remaining delimiter issues
+        json_str = re.sub(r',\s*,', ',', json_str)  # Remove duplicate commas
+        json_str = re.sub(r',\s*}', '}', json_str)  # Remove trailing commas before closing braces
+        json_str = re.sub(r',\s*]', ']', json_str)  # Remove trailing commas before closing brackets
+        
+        return json_str
+    except Exception as e:
+        st.error(f"Error cleaning JSON string: {str(e)}")
+        return None
+
 def get_ai_analysis(area_bounds, osm_analysis):
     """Get AI analysis for the selected area using OpenRouter API"""
     OPENROUTER_API_KEY = os.getenv('OPENROUTER_API_KEY')
@@ -128,6 +175,7 @@ def get_ai_analysis(area_bounds, osm_analysis):
     Return ONLY a JSON array with exactly 3 objects, no other text. Each object must follow this exact structure.
     Make sure all property names and string values are enclosed in double quotes.
     Do not include any comments or trailing commas.
+    Ensure proper comma placement between objects and key-value pairs.
 
     Example structure (modify the values, keep the structure):
     [
@@ -249,28 +297,6 @@ def get_ai_analysis(area_bounds, osm_analysis):
         # Extract the content from the response
         content = response.json()['choices'][0]['message']['content'].strip()
         
-        def clean_json_string(json_str):
-            """Clean and fix common JSON formatting issues"""
-            # Remove any text before the first [ and after the last ]
-            json_str = re.sub(r'^[^[]*\[', '[', json_str)
-            json_str = re.sub(r'\][^]]*$', ']', json_str)
-            
-            # Replace single quotes with double quotes
-            json_str = json_str.replace("'", '"')
-            
-            # Ensure property names are in double quotes
-            json_str = re.sub(r'([{,])\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*:', r'\1"\2":', json_str)
-            
-            # Remove trailing commas
-            json_str = re.sub(r',\s*}', '}', json_str)
-            json_str = re.sub(r',\s*]', ']', json_str)
-            
-            # Fix boolean values
-            json_str = json_str.replace('true', 'true')
-            json_str = json_str.replace('false', 'false')
-            
-            return json_str
-        
         # Try to find JSON in the response
         try:
             # First try direct JSON parsing
@@ -285,10 +311,16 @@ def get_ai_analysis(area_bounds, osm_analysis):
                 except json.JSONDecodeError:
                     # If still fails, try cleaning the JSON
                     cleaned_json = clean_json_string(json_match.group())
-                    try:
-                        return json.loads(cleaned_json)
-                    except json.JSONDecodeError as e:
-                        st.error(f"Could not parse JSON after cleaning: {str(e)}")
+                    if cleaned_json:
+                        try:
+                            return json.loads(cleaned_json)
+                        except json.JSONDecodeError as e:
+                            st.error(f"Could not parse JSON after cleaning: {str(e)}")
+                            # Print the problematic JSON for debugging
+                            st.code(cleaned_json, language='json')
+                            return None
+                    else:
+                        st.error("Failed to clean JSON string")
                         return None
             else:
                 st.error("Could not find JSON array in the AI response")
