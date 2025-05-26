@@ -233,6 +233,7 @@ def get_ai_analysis(area_bounds, osm_analysis):
     Example structure (modify the values, keep the structure):
     [
         {{
+            "name": "Minimalist Clean",
             "layers": {{
                 "perimeter": {{}},
                 "streets": {{
@@ -427,9 +428,7 @@ def main():
     st.write("Draw an area on the map to generate beautiful visualizations using AI-powered PrettyMaps!")
     
     # Create a container for the map
-    map_container = st.container()
-    
-    with map_container:
+    with st.container():
         # Create a map centered on a default location
         m = folium.Map(location=[0, 0], zoom_start=2)
         
@@ -488,7 +487,7 @@ def main():
                 progress_container.info("🤖 Getting AI analysis for map styles...")
                 ai_params = get_ai_analysis(area_bounds, osm_analysis)
                 
-                if ai_params:
+                if ai_params and len(ai_params) == 3:  # Ensure we have exactly 3 maps
                     # Step 3: Generating maps
                     progress_container.info("🎨 Generating beautiful maps...")
                     
@@ -499,7 +498,8 @@ def main():
                     for i, params in enumerate(ai_params):
                         with map_cols[i]:
                             progress_container.info(f"🎨 Generating map style {i+1}/3...")
-                            st.subheader(f"Map Style {i+1}")
+                            map_name = params.get('name', f"Map Style {i+1}")
+                            st.subheader(map_name)
                             map_image = generate_map(area_bounds, params)
                             
                             if map_image:
@@ -508,9 +508,9 @@ def main():
                                 
                                 # Add download button
                                 btn = st.download_button(
-                                    label=f"Download Map {i+1}",
+                                    label=f"Download {map_name}",
                                     data=map_image,
-                                    file_name=f"pretty_map_{i+1}.png",
+                                    file_name=f"pretty_map_{map_name.lower().replace(' ', '_')}.png",
                                     mime="image/png",
                                     use_container_width=True
                                 )
@@ -518,7 +518,7 @@ def main():
                     # Clear progress message when done
                     progress_container.success("✨ Map generation complete! You can download your maps above.")
                 else:
-                    progress_container.error("❌ Failed to get AI analysis. Please try again.")
+                    progress_container.error("❌ Failed to generate all three map styles. Please try again.")
             else:
                 progress_container.error("❌ Failed to analyze area. Please try again.")
     else:
