@@ -14,10 +14,7 @@ import osmnx as ox
 import geopandas as gpd
 from shapely.geometry import box
 import warnings
-import re
-from geopy.geocoders import Nominatim
 from stqdm import stqdm
-from streamlit_searchbox import st_searchbox
 
 # Suppress specific warnings
 warnings.filterwarnings('ignore', category=FutureWarning)
@@ -448,56 +445,6 @@ def generate_map(area_bounds, params):
         st.error(f"Error generating map: {str(e)}")
         return None
 
-def search_locations(query, limit=5):
-    if not query or len(query) < 2:
-        return []
-    
-    try:
-        response = requests.get(
-            "https://nominatim.openstreetmap.org/search",
-            params={
-                'q': query,
-                'format': 'json',
-                'limit': limit,
-                'addressdetails': 1
-            },
-            headers={'User-Agent': 'prettymapp-streamlit/1.0'},
-            timeout=10
-        )
-        response.raise_for_status()
-        
-        results = []
-        for item in response.json():
-            display_parts = []
-            address = item.get('address', {})
-            
-            if name := item.get('name'):
-                display_parts.append(name)
-            if city := address.get('city') or address.get('town'):
-                display_parts.append(city)
-            if country := address.get('country'):
-                display_parts.append(country)
-            
-            results.append({
-                'display': ', '.join(display_parts) or item.get('display_name', 'Location'),
-                'full': item.get('display_name', ''),
-                'lat': float(item.get('lat', 0)),
-                'lon': float(item.get('lon', 0)),
-                'type': f"{item.get('type', 'place')} ({item.get('class', 'location')})",
-                'importance': item.get('importance', 0)
-            })
-        
-        return sorted(results, key=lambda x: -x['importance'])
-    
-    except Exception as e:
-        st.error(f"Search error: {str(e)}")
-        return []
-
-def search_location(searchterm: str) -> list:
-    """Search function for the searchbox component using Nominatim API"""
-    results = search_locations(searchterm)
-    return [f"{result['display']} ({result['lat']}, {result['lon']})" for result in results]
-
 def main():
     st.title("🗺️ PrettyMapAI")
     st.write("Search for a location or draw an area on the map to generate beautiful visualizations!")
@@ -512,8 +459,7 @@ def main():
         Geocoder(
             position='topleft',
             placeholder='Search for a location...',
-            add_marker=True,
-            popup=True
+            add_marker=False
         ).add_to(m)
         
         # Add drawing tools
