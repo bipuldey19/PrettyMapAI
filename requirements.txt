@@ -1,10 +1,10 @@
 streamlit==1.32.0
-prettymaps
+prettymaps==1.4.2
 osmnx==1.8.1
 matplotlib==3.8.3
 shapely==2.0.3
 geopandas==0.14.3
-folium==0.15.2
+folium==0.19.6
 streamlit-folium==0.15.1
 requests==2.31.0
 python-dotenv==1.0.1
