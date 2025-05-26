@@ -11,3 +11,4 @@ requests
 python-dotenv
 numpy
 pandas
+geopy
