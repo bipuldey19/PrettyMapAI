@@ -15,6 +15,7 @@ import geopandas as gpd
 from shapely.geometry import box
 import warnings
 import re
+from geopy.geocoders import Nominatim
 
 # Suppress specific warnings
 warnings.filterwarnings('ignore', category=FutureWarning)
@@ -184,17 +185,17 @@ def clean_json_string(json_str):
         st.code(json_str, language='json')
         return None
 
-def get_ai_analysis(area_bounds, osm_analysis):
+def get_ai_analysis(area_bounds, osm_analysis, user_prompt):
     """Get AI analysis for the selected area using OpenRouter API"""
     OPENROUTER_API_KEY = os.getenv('OPENROUTER_API_KEY')
     
-    system_message = """You are a map visualization expert. Your task is to generate exactly three different map styles for a given area.
-    You must always return a JSON array containing exactly three objects, each with a unique style.
+    system_message = """You are a map visualization expert. Your task is to generate exactly two different map styles for a given area based on the user's description.
+    You must always return a JSON array containing exactly two objects, each with a unique style.
     Do not return any text before or after the JSON array.
-    Each style must be significantly different from the others in terms of colors, patterns, and visual elements."""
+    Each style must be significantly different from the other in terms of colors, patterns, and visual elements."""
     
     prompt = f"""
-    Generate exactly three different map styles for this geographic area:
+    Generate exactly two different map styles for this geographic area based on the user's description: "{user_prompt}"
 
     Area Size: {osm_analysis['area_size']:.2f} square meters
     Building Count: {osm_analysis['building_count']}
@@ -215,20 +216,16 @@ def get_ai_analysis(area_bounds, osm_analysis):
     - Secondary: {osm_analysis['street_types']['secondary']}
     - Residential: {osm_analysis['street_types']['residential']}
 
-    You must create three DISTINCT styles:
-    1. A minimalist, clean style with subtle colors and thin lines
-    2. A vibrant, artistic style with bold colors and patterns
-    3. A vintage, hand-drawn style with textured elements
+    Create two DISTINCT styles that best match the user's description while being different from each other.
+    Consider different approaches to:
+    - Color palettes
+    - Line weights
+    - Patterns
+    - Background colors
+    - Building styles
+    - Street emphasis
 
-    Each style must be significantly different from the others in terms of:
-    - Color palettes (use pastel for minimalist, vibrant for artistic, muted for vintage)
-    - Line weights (thin for minimalist, medium for artistic, bold for vintage)
-    - Patterns (none for minimalist, dots for artistic, crosshatch for vintage)
-    - Background colors (light for minimalist, colorful for artistic, textured for vintage)
-    - Building styles (simple for minimalist, detailed for artistic, textured for vintage)
-    - Street emphasis (subtle for minimalist, prominent for artistic, hand-drawn for vintage)
-
-    Return ONLY a JSON array with exactly 3 objects. Each object must include:
+    Return ONLY a JSON array with exactly 2 objects. Each object must include:
     - name: A short descriptive name for the style
     - layers: All required layer configurations
     - style: All style parameters
@@ -242,7 +239,7 @@ def get_ai_analysis(area_bounds, osm_analysis):
     Example structure (modify the values, keep the structure):
     [
         {{
-            "name": "Minimalist Clean",
+            "name": "Style Name",
             "layers": {{
                 "perimeter": {{}},
                 "streets": {{
@@ -372,8 +369,8 @@ def get_ai_analysis(area_bounds, osm_analysis):
         try:
             # First try direct JSON parsing
             data = json.loads(content)
-            if not isinstance(data, list) or len(data) != 3:
-                st.error("AI response did not contain exactly 3 map styles")
+            if not isinstance(data, list) or len(data) != 2:
+                st.error("AI response did not contain exactly 2 map styles")
                 st.code(content, language='json')
                 return None
             return data
@@ -384,8 +381,8 @@ def get_ai_analysis(area_bounds, osm_analysis):
                 try:
                     # Try parsing the extracted JSON
                     data = json.loads(json_match.group())
-                    if not isinstance(data, list) or len(data) != 3:
-                        st.error("AI response did not contain exactly 3 map styles")
+                    if not isinstance(data, list) or len(data) != 2:
+                        st.error("AI response did not contain exactly 2 map styles")
                         st.code(json_match.group(), language='json')
                         return None
                     return data
@@ -395,8 +392,8 @@ def get_ai_analysis(area_bounds, osm_analysis):
                     if cleaned_json:
                         try:
                             data = json.loads(cleaned_json)
-                            if not isinstance(data, list) or len(data) != 3:
-                                st.error("AI response did not contain exactly 3 map styles")
+                            if not isinstance(data, list) or len(data) != 2:
+                                st.error("AI response did not contain exactly 2 map styles")
                                 st.code(cleaned_json, language='json')
                                 return None
                             return data
@@ -451,17 +448,24 @@ def generate_map(area_bounds, params):
 
 def main():
     st.title("🗺️ PrettyMapAI")
-    st.write("Draw an area on the map to generate beautiful visualizations using AI-powered PrettyMaps!")
+    st.write("Search for a location or draw an area on the map to generate beautiful visualizations!")
     
-    # Create a container for the map with smaller font
-    with st.container():
+    # Create containers with borders
+    map_container = st.container()
+    with map_container:
         st.markdown("""
         <style>
-        .map-container {
-            font-size: 12px;
+        .stContainer {
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 1rem;
+            margin-bottom: 1rem;
         }
         </style>
         """, unsafe_allow_html=True)
+        
+        # Search functionality
+        search_query = st.text_input("🔍 Search for a location", placeholder="Enter city, landmark, or coordinates")
         
         # Create a map centered on a default location
         m = folium.Map(location=[0, 0], zoom_start=2)
@@ -479,36 +483,79 @@ def main():
         )
         draw.add_to(m)
         
+        # If search query is provided, try to geocode it
+        if search_query:
+            try:
+                # Use Nominatim for geocoding
+                geolocator = Nominatim(user_agent="prettymapai")
+                location = geolocator.geocode(search_query)
+                if location:
+                    m.location = [location.latitude, location.longitude]
+                    m.zoom_start = 13
+            except Exception as e:
+                st.warning(f"Could not find location: {str(e)}")
+        
         # Display the map using st_folium with smaller size
-        map_data = st_folium(m, width=800, height=300)
+        map_data = st_folium(m, width=700, height=300)
     
-    # Create a container for the generate button
-    with st.container():
-        if map_data and map_data.get('last_active_drawing'):
-            drawn_features = map_data['last_active_drawing']
-            
-            # Extract bounds from the drawn area
-            bounds = drawn_features['geometry']['coordinates'][0]
-            area_bounds = {
-                'north': max(coord[1] for coord in bounds),
-                'south': min(coord[1] for coord in bounds),
-                'east': max(coord[0] for coord in bounds),
-                'west': min(coord[0] for coord in bounds)
-            }
-            
-            # Add a prominent button in full width
-            if st.button("🎨 Generate Beautiful Maps", use_container_width=True):
+    # User prompt container
+    prompt_container = st.container()
+    with prompt_container:
+        st.markdown("""
+        <style>
+        .stContainer {
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+        
+        user_prompt = st.text_area(
+            "🎨 Describe how you want your map to look",
+            placeholder="Example: I want a vintage style map with warm colors and hand-drawn elements",
+            height=100
+        )
+        
+        # Add a prominent button in full width
+        if st.button("🎨 Generate Beautiful Maps", use_container_width=True):
+            if not map_data or not map_data.get('last_active_drawing'):
+                st.error("Please draw an area on the map first!")
+            elif not user_prompt:
+                st.error("Please describe how you want your map to look!")
+            else:
                 # Create a progress container
-                progress_container = st.empty()
-                progress_container.info("Starting map generation process...")
-                
-                # Step 1: Analyzing OSM data
-                progress_container.info("📊 Analyzing OpenStreetMap data...")
-                osm_analysis = analyze_osm_area(area_bounds)
-                
-                if osm_analysis:
-                    # Create a container for output data
-                    with st.container():
+                progress_container = st.container()
+                with progress_container:
+                    st.markdown("""
+                    <style>
+                    .stContainer {
+                        border: 1px solid #ddd;
+                        border-radius: 5px;
+                        padding: 1rem;
+                        margin-bottom: 1rem;
+                    }
+                    </style>
+                    """, unsafe_allow_html=True)
+                    
+                    progress_container.info("Starting map generation process...")
+                    
+                    # Extract bounds from the drawn area
+                    drawn_features = map_data['last_active_drawing']
+                    bounds = drawn_features['geometry']['coordinates'][0]
+                    area_bounds = {
+                        'north': max(coord[1] for coord in bounds),
+                        'south': min(coord[1] for coord in bounds),
+                        'east': max(coord[0] for coord in bounds),
+                        'west': min(coord[0] for coord in bounds)
+                    }
+                    
+                    # Step 1: Analyzing OSM data
+                    progress_container.info("📊 Analyzing OpenStreetMap data...")
+                    osm_analysis = analyze_osm_area(area_bounds)
+                    
+                    if osm_analysis:
                         # Show area analysis in a more subtle way
                         with st.expander("Area Analysis", expanded=False):
                             cols = st.columns(2)
@@ -523,19 +570,19 @@ def main():
                         
                         # Step 2: Getting AI analysis
                         progress_container.info("🤖 Getting AI analysis for map styles...")
-                        ai_params = get_ai_analysis(area_bounds, osm_analysis)
+                        ai_params = get_ai_analysis(area_bounds, osm_analysis, user_prompt)
                         
-                        if ai_params and len(ai_params) == 3:  # Ensure we have exactly 3 maps
+                        if ai_params and len(ai_params) == 2:  # Now expecting 2 maps
                             # Step 3: Generating maps
                             progress_container.info("🎨 Generating beautiful maps...")
                             
-                            # Create three columns for the maps
-                            map_cols = st.columns(3)
+                            # Create two columns for the maps
+                            map_cols = st.columns(2)
                             
                             # Generate maps for each parameter set
                             for i, params in enumerate(ai_params):
                                 with map_cols[i]:
-                                    progress_container.info(f"🎨 Generating map style {i+1}/3...")
+                                    progress_container.info(f"🎨 Generating map style {i+1}/2...")
                                     map_name = params.get('name', f"Map Style {i+1}")
                                     st.subheader(map_name)
                                     map_image = generate_map(area_bounds, params)
@@ -556,11 +603,11 @@ def main():
                             # Clear progress message when done
                             progress_container.success("✨ Map generation complete! You can download your maps above.")
                         else:
-                            progress_container.error("❌ Failed to generate all three map styles. Please try again.")
-                else:
-                    progress_container.error("❌ Failed to analyze area. Please try again.")
-        else:
-            st.info("👆 Draw an area on the map to get started!")
+                            progress_container.error("❌ Failed to generate map styles. Please try again.")
+                    else:
+                        progress_container.error("❌ Failed to analyze area. Please try again.")
+    else:
+        st.info("👆 Draw an area on the map and describe your desired style to get started!")
 
 if __name__ == "__main__":
     main() 
