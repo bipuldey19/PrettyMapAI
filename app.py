@@ -14,6 +14,7 @@ import osmnx as ox
 import geopandas as gpd
 from shapely.geometry import box
 import warnings
+import re
 
 # Suppress specific warnings
 warnings.filterwarnings('ignore', category=FutureWarning)
@@ -527,6 +528,10 @@ def main():
                     # Step 1: Analyzing OSM data
                     progress_message.info("📊 Analyzing OpenStreetMap data...")
                     osm_analysis = analyze_osm_area(area_bounds)
+                    
+                    if not osm_analysis:
+                        progress_message.error("❌ Failed to analyze area. Please try again.")
+                        return
                     
                     # Step 2: Getting AI analysis
                     progress_message.info("🤖 Getting AI analysis for map styles...")
