@@ -27,7 +27,7 @@ load_dotenv()
 st.set_page_config(
     page_title="PrettyMapAI",
     page_icon="🗺️",
-    layout="wide"
+    layout="centered"
 )
 
 # Initialize session state
