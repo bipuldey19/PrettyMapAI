@@ -514,8 +514,10 @@ def main():
         
         # Add a prominent button in full width
         if st.button("🎨 Generate PrettyMaps", use_container_width=True):
+            # Only proceed if a drawn area is present
             if not map_data or not map_data.get('last_active_drawing'):
-                st.error("Please draw an area on the map first!")
+                st.error("Please draw an area on the map first! The map is generated only from the area you draw, not from the search result.")
+                return
             else:
                 # Create a progress container
                 progress_container = st.container(border=True)
@@ -524,7 +526,7 @@ def main():
                     progress_message = progress_container.empty()
                     progress_message.info("Starting map generation process...")
                     
-                    # Extract bounds from the drawn area
+                    # Extract bounds from the drawn area (polygon/rectangle)
                     drawn_features = map_data['last_active_drawing']
                     bounds = drawn_features['geometry']['coordinates'][0]
                     area_bounds = {
