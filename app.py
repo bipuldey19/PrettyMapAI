@@ -220,7 +220,7 @@ def get_ai_analysis(area_bounds, osm_analysis):
     Do not include any comments or trailing commas.
     Ensure proper comma placement between objects and key-value pairs.
     Each object must be complete and valid JSON.
-    Make sure to include all required fields: layers, style, circle, radius, figsize, scale_x, scale_y, and adjust_aspect_ratio.
+    Make sure to include all required fields: name, layers, style, circle, radius, figsize, scale_x, scale_y, and adjust_aspect_ratio.
 
     For each style, use different:
     - Color palettes (pastel, vibrant, or muted)
@@ -334,10 +334,9 @@ def get_ai_analysis(area_bounds, osm_analysis):
     }
     
     data = {
-        "model": "mistralai/mistral-7b-instruct",
+        "model": "deepseek/deepseek-chat-v3-0324:free",
         "messages": [{"role": "user", "content": prompt}],
         "temperature": 0.7,
-        "max_tokens": 2000,  # Increased max tokens to ensure complete response
         "stream": False  # Ensure we get the complete response
     }
     
@@ -360,20 +359,35 @@ def get_ai_analysis(area_bounds, osm_analysis):
         # Try to find JSON in the response
         try:
             # First try direct JSON parsing
-            return json.loads(content)
+            data = json.loads(content)
+            if not isinstance(data, list) or len(data) != 3:
+                st.error("AI response did not contain exactly 3 map styles")
+                st.code(content, language='json')
+                return None
+            return data
         except json.JSONDecodeError:
             # If that fails, try to extract JSON from the text
             json_match = re.search(r'\[.*\]', content, re.DOTALL)
             if json_match:
                 try:
                     # Try parsing the extracted JSON
-                    return json.loads(json_match.group())
+                    data = json.loads(json_match.group())
+                    if not isinstance(data, list) or len(data) != 3:
+                        st.error("AI response did not contain exactly 3 map styles")
+                        st.code(json_match.group(), language='json')
+                        return None
+                    return data
                 except json.JSONDecodeError:
                     # If still fails, try cleaning the JSON
                     cleaned_json = clean_json_string(json_match.group())
                     if cleaned_json:
                         try:
-                            return json.loads(cleaned_json)
+                            data = json.loads(cleaned_json)
+                            if not isinstance(data, list) or len(data) != 3:
+                                st.error("AI response did not contain exactly 3 map styles")
+                                st.code(cleaned_json, language='json')
+                                return None
+                            return data
                         except json.JSONDecodeError as e:
                             st.error(f"Could not parse JSON after cleaning: {str(e)}")
                             # Print the problematic JSON for debugging
