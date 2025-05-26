@@ -210,13 +210,25 @@ def get_ai_analysis(area_bounds, osm_analysis):
     - Secondary: {osm_analysis['street_types']['secondary']}
     - Residential: {osm_analysis['street_types']['residential']}
 
-    Based on these characteristics, suggest PrettyMaps parameters for three different map styles.
+    Based on these characteristics, suggest PrettyMaps parameters for three DIFFERENT map styles:
+    1. A minimalist, clean style with subtle colors and thin lines
+    2. A vibrant, artistic style with bold colors and patterns
+    3. A vintage, hand-drawn style with textured elements
+
     Return ONLY a JSON array with exactly 3 objects, no other text. Each object must follow this exact structure.
     Make sure all property names and string values are enclosed in double quotes.
     Do not include any comments or trailing commas.
     Ensure proper comma placement between objects and key-value pairs.
     Each object must be complete and valid JSON.
     Make sure to include all required fields: layers, style, circle, radius, figsize, scale_x, scale_y, and adjust_aspect_ratio.
+
+    For each style, use different:
+    - Color palettes (pastel, vibrant, or muted)
+    - Line weights (thin, medium, or bold)
+    - Patterns (none, dots, or crosshatch)
+    - Background colors
+    - Building styles
+    - Street emphasis
 
     Example structure (modify the values, keep the structure):
     [
@@ -414,10 +426,10 @@ def main():
     st.title("🗺️ PrettyMapAI")
     st.write("Draw an area on the map to generate beautiful visualizations using AI-powered PrettyMaps!")
     
-    # Create two columns for the layout
-    col1, col2 = st.columns([2, 1])
+    # Create a container for the map
+    map_container = st.container()
     
-    with col1:
+    with map_container:
         # Create a map centered on a default location
         m = folium.Map(location=[0, 0], zoom_start=2)
         
@@ -435,54 +447,57 @@ def main():
         draw.add_to(m)
         
         # Display the map using st_folium
-        map_data = st_folium(m, width=600, height=400)
+        map_data = st_folium(m, width=800, height=400)
     
-    with col2:
-        if map_data and map_data.get('last_active_drawing'):
-            drawn_features = map_data['last_active_drawing']
+    if map_data and map_data.get('last_active_drawing'):
+        drawn_features = map_data['last_active_drawing']
+        
+        # Extract bounds from the drawn area
+        bounds = drawn_features['geometry']['coordinates'][0]
+        area_bounds = {
+            'north': max(coord[1] for coord in bounds),
+            'south': min(coord[1] for coord in bounds),
+            'east': max(coord[0] for coord in bounds),
+            'west': min(coord[0] for coord in bounds)
+        }
+        
+        # Add a prominent button in full width
+        if st.button("🎨 Generate Beautiful Maps", use_container_width=True):
+            # Create a progress container
+            progress_container = st.empty()
+            progress_container.info("Starting map generation process...")
             
-            # Extract bounds from the drawn area
-            bounds = drawn_features['geometry']['coordinates'][0]
-            area_bounds = {
-                'north': max(coord[1] for coord in bounds),
-                'south': min(coord[1] for coord in bounds),
-                'east': max(coord[0] for coord in bounds),
-                'west': min(coord[0] for coord in bounds)
-            }
+            # Step 1: Analyzing OSM data
+            progress_container.info("📊 Analyzing OpenStreetMap data...")
+            osm_analysis = analyze_osm_area(area_bounds)
             
-            # Add a prominent button
-            if st.button("🎨 Generate Beautiful Maps", use_container_width=True):
-                # Create a progress container
-                progress_container = st.empty()
-                progress_container.info("Starting map generation process...")
+            if osm_analysis:
+                # Show area analysis in a more subtle way
+                with st.expander("Area Analysis", expanded=False):
+                    cols = st.columns(2)
+                    with cols[0]:
+                        st.metric("Area Size", f"{osm_analysis['area_size']/1000000:.2f} km²")
+                        st.metric("Buildings", osm_analysis['building_count'])
+                        st.metric("Streets", osm_analysis['street_count'])
+                    with cols[1]:
+                        st.metric("Water Bodies", osm_analysis['natural_features']['water'])
+                        st.metric("Parks", osm_analysis['natural_features']['park'])
+                        st.metric("Amenities", sum(osm_analysis['amenities'].values()))
                 
-                # Step 1: Analyzing OSM data
-                progress_container.info("📊 Analyzing OpenStreetMap data...")
-                osm_analysis = analyze_osm_area(area_bounds)
+                # Step 2: Getting AI analysis
+                progress_container.info("🤖 Getting AI analysis for map styles...")
+                ai_params = get_ai_analysis(area_bounds, osm_analysis)
                 
-                if osm_analysis:
-                    # Show area analysis in a more subtle way
-                    with st.expander("Area Analysis", expanded=False):
-                        cols = st.columns(2)
-                        with cols[0]:
-                            st.metric("Area Size", f"{osm_analysis['area_size']/1000000:.2f} km²")
-                            st.metric("Buildings", osm_analysis['building_count'])
-                            st.metric("Streets", osm_analysis['street_count'])
-                        with cols[1]:
-                            st.metric("Water Bodies", osm_analysis['natural_features']['water'])
-                            st.metric("Parks", osm_analysis['natural_features']['park'])
-                            st.metric("Amenities", sum(osm_analysis['amenities'].values()))
+                if ai_params:
+                    # Step 3: Generating maps
+                    progress_container.info("🎨 Generating beautiful maps...")
                     
-                    # Step 2: Getting AI analysis
-                    progress_container.info("🤖 Getting AI analysis for map styles...")
-                    ai_params = get_ai_analysis(area_bounds, osm_analysis)
+                    # Create three columns for the maps
+                    map_cols = st.columns(3)
                     
-                    if ai_params:
-                        # Step 3: Generating maps
-                        progress_container.info("🎨 Generating beautiful maps...")
-                        
-                        # Generate maps for each parameter set
-                        for i, params in enumerate(ai_params):
+                    # Generate maps for each parameter set
+                    for i, params in enumerate(ai_params):
+                        with map_cols[i]:
                             progress_container.info(f"🎨 Generating map style {i+1}/3...")
                             st.subheader(f"Map Style {i+1}")
                             map_image = generate_map(area_bounds, params)
@@ -499,15 +514,15 @@ def main():
                                     mime="image/png",
                                     use_container_width=True
                                 )
-                        
-                        # Clear progress message when done
-                        progress_container.success("✨ Map generation complete! You can download your maps above.")
-                    else:
-                        progress_container.error("❌ Failed to get AI analysis. Please try again.")
+                    
+                    # Clear progress message when done
+                    progress_container.success("✨ Map generation complete! You can download your maps above.")
                 else:
-                    progress_container.error("❌ Failed to analyze area. Please try again.")
-        else:
-            st.info("👆 Draw an area on the map to get started!")
+                    progress_container.error("❌ Failed to get AI analysis. Please try again.")
+            else:
+                progress_container.error("❌ Failed to analyze area. Please try again.")
+    else:
+        st.info("👆 Draw an area on the map to get started!")
 
 if __name__ == "__main__":
     main() 
