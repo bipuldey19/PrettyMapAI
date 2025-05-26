@@ -16,6 +16,8 @@ from shapely.geometry import box
 import warnings
 import re
 from geopy.geocoders import Nominatim
+from stqdm import stqdm
+from streamlit_searchbox import st_searchbox
 
 # Suppress specific warnings
 warnings.filterwarnings('ignore', category=FutureWarning)
@@ -446,26 +448,38 @@ def generate_map(area_bounds, params):
         st.error(f"Error generating map: {str(e)}")
         return None
 
+def search_location(searchterm: str) -> list:
+    """Search function for the searchbox component"""
+    if not searchterm:
+        return []
+    
+    try:
+        geolocator = Nominatim(user_agent="prettymapai")
+        locations = geolocator.geocode(searchterm, exactly_one=False, limit=5)
+        if locations:
+            return [f"{loc.address} ({loc.latitude:.4f}, {loc.longitude:.4f})" for loc in locations]
+        return []
+    except Exception as e:
+        st.error(f"Error searching location: {str(e)}")
+        return []
+
 def main():
     st.title("🗺️ PrettyMapAI")
     st.write("Search for a location or draw an area on the map to generate beautiful visualizations!")
     
     # Create containers with borders
-    map_container = st.container()
+    map_container = st.container(border=True)
     with map_container:
-        st.markdown("""
-        <style>
-        .stContainer {
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            padding: 1rem;
-            margin-bottom: 1rem;
-        }
-        </style>
-        """, unsafe_allow_html=True)
-        
-        # Search functionality
-        search_query = st.text_input("🔍 Search for a location", placeholder="Enter city, landmark, or coordinates")
+        # Search functionality with streamlit-searchbox
+        selected_location = st_searchbox(
+            search_location,
+            placeholder="🔍 Search for a location...",
+            label="Location Search",
+            help="Enter a city, landmark, or coordinates",
+            key="location_search",
+            clear_on_submit=False,
+            edit_after_submit="current"
+        )
         
         # Create a map centered on a default location
         m = folium.Map(location=[0, 0], zoom_start=2)
@@ -483,37 +497,27 @@ def main():
         )
         draw.add_to(m)
         
-        # If search query is provided, try to geocode it
-        if search_query:
+        # If location is selected, update the map
+        if selected_location:
             try:
-                # Use Nominatim for geocoding
-                geolocator = Nominatim(user_agent="prettymapai")
-                location = geolocator.geocode(search_query)
-                if location:
-                    m.location = [location.latitude, location.longitude]
+                # Extract coordinates from the selected location string
+                coords = re.findall(r'\(([-\d.]+),\s*([-\d.]+)\)', selected_location)
+                if coords:
+                    lat, lon = map(float, coords[0])
+                    m.location = [lat, lon]
                     m.zoom_start = 13
+                    st.success(f"Found location: {selected_location}")
             except Exception as e:
-                st.warning(f"Could not find location: {str(e)}")
+                st.error(f"Error updating map location: {str(e)}")
         
         # Display the map using st_folium with smaller size
         map_data = st_folium(m, width=700, height=300)
     
     # User prompt container
-    prompt_container = st.container()
+    prompt_container = st.container(border=True)
     with prompt_container:
-        st.markdown("""
-        <style>
-        .stContainer {
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            padding: 1rem;
-            margin-bottom: 1rem;
-        }
-        </style>
-        """, unsafe_allow_html=True)
-        
         user_prompt = st.text_area(
-            "🎨 (Optional) Describe how you want your map to look",
+            "🎨 (Optional) Describe your preferred map style",
             placeholder="Example: I want a vintage style map with warm colors and hand-drawn elements",
             height=100
         )
@@ -524,20 +528,11 @@ def main():
                 st.error("Please draw an area on the map first!")
             else:
                 # Create a progress container
-                progress_container = st.container()
+                progress_container = st.container(border=True)
                 with progress_container:
-                    st.markdown("""
-                    <style>
-                    .stContainer {
-                        border: 1px solid #ddd;
-                        border-radius: 5px;
-                        padding: 1rem;
-                        margin-bottom: 1rem;
-                    }
-                    </style>
-                    """, unsafe_allow_html=True)
-                    
-                    progress_container.info("Starting map generation process...")
+                    # Initialize progress message
+                    progress_message = progress_container.empty()
+                    progress_message.info("Starting map generation process...")
                     
                     # Extract bounds from the drawn area
                     drawn_features = map_data['last_active_drawing']
@@ -550,7 +545,7 @@ def main():
                     }
                     
                     # Step 1: Analyzing OSM data
-                    progress_container.info("📊 Analyzing OpenStreetMap data...")
+                    progress_message.info("📊 Analyzing OpenStreetMap data...")
                     osm_analysis = analyze_osm_area(area_bounds)
                     
                     if osm_analysis:
@@ -567,20 +562,19 @@ def main():
                                 st.metric("Amenities", sum(osm_analysis['amenities'].values()))
                         
                         # Step 2: Getting AI analysis
-                        progress_container.info("🤖 Getting AI analysis for map styles...")
+                        progress_message.info("🤖 Getting AI analysis for map styles...")
                         ai_params = get_ai_analysis(area_bounds, osm_analysis, user_prompt)
                         
                         if ai_params and len(ai_params) == 2:  # Now expecting 2 maps
                             # Step 3: Generating maps
-                            progress_container.info("🎨 Generating beautiful maps...")
+                            progress_message.info("🎨 Generating beautiful maps...")
                             
                             # Create two columns for the maps
                             map_cols = st.columns(2)
                             
-                            # Generate maps for each parameter set
-                            for i, params in enumerate(ai_params):
+                            # Generate maps for each parameter set with progress bar
+                            for i, params in enumerate(stqdm(ai_params, desc="Generating maps")):
                                 with map_cols[i]:
-                                    progress_container.info(f"🎨 Generating map style {i+1}/2...")
                                     map_name = params.get('name', f"Map Style {i+1}")
                                     st.subheader(map_name)
                                     map_image = generate_map(area_bounds, params)
@@ -599,11 +593,11 @@ def main():
                                         )
                             
                             # Clear progress message when done
-                            progress_container.success("✨ Map generation complete! You can download your maps above.")
+                            progress_message.success("✨ Map generation complete! You can download your maps above.")
                         else:
-                            progress_container.error("❌ Failed to generate map styles. Please try again.")
+                            progress_message.error("❌ Failed to generate map styles. Please try again.")
                     else:
-                        progress_container.error("❌ Failed to analyze area. Please try again.")
+                        progress_message.error("❌ Failed to analyze area. Please try again.")
         else:
             st.info("👆 Draw an area on the map to get started!")
 

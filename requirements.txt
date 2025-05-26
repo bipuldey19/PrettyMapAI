@@ -12,3 +12,5 @@ python-dotenv
 numpy
 pandas
 geopy
+stqdm
+streamlit-searchbox
