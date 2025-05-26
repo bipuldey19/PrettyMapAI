@@ -448,33 +448,55 @@ def generate_map(area_bounds, params):
         st.error(f"Error generating map: {str(e)}")
         return None
 
-def search_location(searchterm: str) -> list:
-    """Search function for the searchbox component using Nominatim API directly"""
-    if not searchterm:
+def search_locations(query, limit=5):
+    if not query or len(query) < 2:
         return []
     
     try:
-        # Use Nominatim API directly
-        params = {
-            'q': searchterm,
-            'format': 'json',
-            'limit': 5,
-            'addressdetails': 1
-        }
-        response = requests.get('https://nominatim.openstreetmap.org/search', params=params)
+        response = requests.get(
+            "https://nominatim.openstreetmap.org/search",
+            params={
+                'q': query,
+                'format': 'json',
+                'limit': limit,
+                'addressdetails': 1
+            },
+            headers={'User-Agent': 'prettymapp-streamlit/1.0'},
+            timeout=10
+        )
         response.raise_for_status()
         
-        locations = response.json()
-        if locations:
-            # Format the results with more detailed information
-            return [
-                f"{loc.get('display_name', 'Unknown')} ({loc.get('lat', '0')}, {loc.get('lon', '0')})"
-                for loc in locations
-            ]
-        return []
+        results = []
+        for item in response.json():
+            display_parts = []
+            address = item.get('address', {})
+            
+            if name := item.get('name'):
+                display_parts.append(name)
+            if city := address.get('city') or address.get('town'):
+                display_parts.append(city)
+            if country := address.get('country'):
+                display_parts.append(country)
+            
+            results.append({
+                'display': ', '.join(display_parts) or item.get('display_name', 'Location'),
+                'full': item.get('display_name', ''),
+                'lat': float(item.get('lat', 0)),
+                'lon': float(item.get('lon', 0)),
+                'type': f"{item.get('type', 'place')} ({item.get('class', 'location')})",
+                'importance': item.get('importance', 0)
+            })
+        
+        return sorted(results, key=lambda x: -x['importance'])
+    
     except Exception as e:
-        st.error(f"Error searching location: {str(e)}")
+        st.error(f"Search error: {str(e)}")
         return []
+
+def search_location(searchterm: str) -> list:
+    """Search function for the searchbox component using Nominatim API"""
+    results = search_locations(searchterm)
+    return [f"{result['display']} ({result['lat']}, {result['lon']})" for result in results]
 
 def main():
     st.title("🗺️ PrettyMapAI")
