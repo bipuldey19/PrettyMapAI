@@ -15,6 +15,7 @@ import geopandas as gpd
 from shapely.geometry import box
 import warnings
 import re
+import random
 
 # Suppress specific warnings
 warnings.filterwarnings('ignore', category=FutureWarning)
@@ -184,9 +185,20 @@ def clean_json_string(json_str):
         st.code(json_str, language='json')
         return None
 
+def get_openrouter_api_key():
+    keys = [
+        os.getenv('OPENROUTER_API_KEY_1'),
+        os.getenv('OPENROUTER_API_KEY_2'),
+        os.getenv('OPENROUTER_API_KEY_3'),
+    ]
+    keys = [k for k in keys if k]
+    if not keys:
+        raise ValueError("No OpenRouter API keys found in environment variables.")
+    return random.choice(keys)
+
 def get_ai_analysis(area_bounds, osm_analysis, user_prompt):
     """Get AI analysis for the selected area using OpenRouter API"""
-    OPENROUTER_API_KEY = os.getenv('OPENROUTER_API_KEY')
+    OPENROUTER_API_KEY = get_openrouter_api_key()
     
     system_message = """You are a map visualization expert. Your task is to generate exactly two different map styles for a given area based on the user's description.
     You must always return a JSON array containing exactly two objects, each with a unique style.
@@ -351,7 +363,6 @@ def get_ai_analysis(area_bounds, osm_analysis, user_prompt):
     try:
         # Show progress while waiting for AI response
         progress = st.empty()
-        progress.info("🤖 Waiting for AI to generate map styles...")
         
         response = requests.post(
             "https://openrouter.ai/api/v1/chat/completions",
