@@ -14,7 +14,6 @@ import osmnx as ox
 import geopandas as gpd
 from shapely.geometry import box
 import warnings
-# from streamlit_custom_notification_box import custom_notification_box as st_notification_box
 
 # Suppress specific warnings
 warnings.filterwarnings('ignore', category=FutureWarning)
@@ -103,7 +102,7 @@ def clean_json_string(json_str):
     try:
         # Remove any text before the first [ and after the last ]
         json_str = re.sub(r'^[^[]*\[', '[', json_str)
-        json_str = re.sub(r'\][^\]]*$', ']', json_str)
+        json_str = re.sub(r'\][^]]*$', ']', json_str)
         
         # Replace single quotes with double quotes
         json_str = json_str.replace("'", '"')
@@ -191,8 +190,7 @@ def get_ai_analysis(area_bounds, osm_analysis, user_prompt):
     system_message = """You are a map visualization expert. Your task is to generate exactly two different map styles for a given area based on the user's description.
     You must always return a JSON array containing exactly two objects, each with a unique style.
     Do not return any text before or after the JSON array.
-    Each style must be significantly different from the other in terms of colors, patterns, and visual elements.
-    Each style object MUST include all required fields: layers, style, circle, radius, figsize."""
+    Each style must be significantly different from the other in terms of colors, patterns, and visual elements."""
     
     prompt = f"""
     Generate exactly two different map styles for this geographic area based on the user's description: "{user_prompt}"
@@ -225,7 +223,7 @@ def get_ai_analysis(area_bounds, osm_analysis, user_prompt):
     - Building styles
     - Street emphasis
 
-    Return ONLY a JSON array with exactly 2 objects. Each object MUST include:
+    Return ONLY a JSON array with exactly 2 objects. Each object must include:
     - name: A short descriptive name for the style
     - layers: All required layer configurations
     - style: All style parameters
@@ -321,7 +319,13 @@ def get_ai_analysis(area_bounds, osm_analysis, user_prompt):
             "figsize": [12, 12],
             "scale_x": 1,
             "scale_y": 1,
-            "adjust_aspect_ratio": true
+            "adjust_aspect_ratio": true,
+            "keypoints": {{
+                "tags": {{"natural": ["beach", "peak"]}},
+                "specific": {{
+                    "central park": {{"tags": {{"leisure": "park"}}}}
+                }}
+            }}
         }}
     ]
 
@@ -345,7 +349,8 @@ def get_ai_analysis(area_bounds, osm_analysis, user_prompt):
     
     try:
         # Show progress while waiting for AI response
-        # st_notification_box(icon='info', textDisplay='🤖 Waiting for AI to generate map styles...', externalLink='', url='', styles={});
+        progress = st.empty()
+        progress.info("🤖 Waiting for AI to generate map styles...")
         
         response = requests.post(
             "https://openrouter.ai/api/v1/chat/completions",
@@ -362,24 +367,10 @@ def get_ai_analysis(area_bounds, osm_analysis, user_prompt):
         try:
             # First try direct JSON parsing
             data = json.loads(content)
-            if not isinstance(data, list):
-                st.error("AI response is not a JSON array")
+            if not isinstance(data, list) or len(data) != 2:
+                st.error("AI response did not contain exactly 2 map styles")
                 st.code(content, language='json')
                 return None
-            if len(data) != 2:
-                st.error(f"AI response contains {len(data)} styles instead of exactly 2")
-                st.code(content, language='json')
-                return None
-            
-            # Validate each style object
-            required_fields = ['name', 'layers', 'style', 'circle', 'radius', 'figsize']
-            for i, style in enumerate(data):
-                missing_fields = [field for field in required_fields if field not in style]
-                if missing_fields:
-                    st.error(f"Style {i+1} is missing required fields: {', '.join(missing_fields)}")
-                    st.code(json.dumps(style, indent=2), language='json')
-                    return None
-            
             return data
         except json.JSONDecodeError:
             # If that fails, try to extract JSON from the text
@@ -388,24 +379,10 @@ def get_ai_analysis(area_bounds, osm_analysis, user_prompt):
                 try:
                     # Try parsing the extracted JSON
                     data = json.loads(json_match.group())
-                    if not isinstance(data, list):
-                        st.error("Extracted JSON is not an array")
+                    if not isinstance(data, list) or len(data) != 2:
+                        st.error("AI response did not contain exactly 2 map styles")
                         st.code(json_match.group(), language='json')
                         return None
-                    if len(data) != 2:
-                        st.error(f"Extracted JSON contains {len(data)} styles instead of exactly 2")
-                        st.code(json_match.group(), language='json')
-                        return None
-                    
-                    # Validate each style object
-                    required_fields = ['name', 'layers', 'style', 'circle', 'radius', 'figsize']
-                    for i, style in enumerate(data):
-                        missing_fields = [field for field in required_fields if field not in style]
-                        if missing_fields:
-                            st.error(f"Style {i+1} is missing required fields: {', '.join(missing_fields)}")
-                            st.code(json.dumps(style, indent=2), language='json')
-                            return None
-                    
                     return data
                 except json.JSONDecodeError:
                     # If still fails, try cleaning the JSON
@@ -413,24 +390,10 @@ def get_ai_analysis(area_bounds, osm_analysis, user_prompt):
                     if cleaned_json:
                         try:
                             data = json.loads(cleaned_json)
-                            if not isinstance(data, list):
-                                st.error("Cleaned JSON is not an array")
+                            if not isinstance(data, list) or len(data) != 2:
+                                st.error("AI response did not contain exactly 2 map styles")
                                 st.code(cleaned_json, language='json')
                                 return None
-                            if len(data) != 2:
-                                st.error(f"Cleaned JSON contains {len(data)} styles instead of exactly 2")
-                                st.code(cleaned_json, language='json')
-                                return None
-                            
-                            # Validate each style object
-                            required_fields = ['name', 'layers', 'style', 'circle', 'radius', 'figsize']
-                            for i, style in enumerate(data):
-                                missing_fields = [field for field in required_fields if field not in style]
-                                if missing_fields:
-                                    st.error(f"Style {i+1} is missing required fields: {', '.join(missing_fields)}")
-                                    st.code(json.dumps(style, indent=2), language='json')
-                                    return None
-                            
                             return data
                         except json.JSONDecodeError as e:
                             st.error(f"Could not parse JSON after cleaning: {str(e)}")
@@ -453,7 +416,8 @@ def get_ai_analysis(area_bounds, osm_analysis, user_prompt):
         st.error(f"Error getting AI analysis: {str(e)}")
         return None
     finally:
-        pass # The custom notification box does not have an empty method
+        # Clear the progress message
+        progress.empty()
 
 def generate_map(area_bounds, params):
     """Generate a map using PrettyMaps with given parameters"""
@@ -518,10 +482,6 @@ def main():
         
         # Display the map using st_folium
         map_data = st_folium(m, width=700, height=500)
-
-        # Store the drawn area in session state if it exists
-        if map_data and map_data.get('last_active_drawing'):
-            st.session_state.drawn_area = map_data['last_active_drawing']
     
     # User prompt container
     prompt_container = st.container(border=True)
@@ -534,8 +494,7 @@ def main():
         
         # Add a prominent button in full width
         if st.button("🎨 Generate PrettyMaps", use_container_width=True):
-            # Check if a drawn area exists in session state
-            if not st.session_state.get('drawn_area'):
+            if not map_data or not map_data.get('last_active_drawing'):
                 st.error("Please draw an area on the map first!")
             else:
                 # Create a progress container
@@ -545,8 +504,8 @@ def main():
                     progress_message = progress_container.empty()
                     progress_message.info("Starting map generation process...")
                     
-                    # Extract bounds from the drawn area stored in session state
-                    drawn_features = st.session_state.drawn_area
+                    # Extract bounds from the drawn area
+                    drawn_features = map_data['last_active_drawing']
                     bounds = drawn_features['geometry']['coordinates'][0]
                     area_bounds = {
                         'north': max(coord[1] for coord in bounds),
@@ -573,6 +532,7 @@ def main():
                                 st.metric("Amenities", sum(osm_analysis['amenities'].values()))
                         
                         # Step 2: Getting AI analysis
+                        progress_message.info("🤖 Getting AI analysis for map styles...")
                         ai_params = get_ai_analysis(area_bounds, osm_analysis, user_prompt)
                         
                         if ai_params and len(ai_params) == 2:  # Now expecting 2 maps
