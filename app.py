@@ -459,7 +459,8 @@ def main():
         Geocoder(
             placeholder='Search for a location...',
             add_marker=False,
-            collapsed=False
+            collapsed=False,
+            search_zoom=5
         ).add_to(m)
         
         # Add drawing tools
