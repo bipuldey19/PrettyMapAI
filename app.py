@@ -196,24 +196,24 @@ def get_ai_analysis(area_bounds, osm_analysis, user_prompt):
     prompt = f"""
     Generate exactly two different map styles for this geographic area based on the user's description: "{user_prompt}"
 
-    Area Size: {osm_analysis['area_size']:.2f} square meters
-    Building Count: {osm_analysis['building_count']}
-    Street Count: {osm_analysis['street_count']}
+    Area Size: {osm_analysis.get('area_size', 0):.2f} square meters
+    Building Count: {osm_analysis.get('building_count', 0)}
+    Street Count: {osm_analysis.get('street_count', 0)}
 
     Natural Features:
-    - Water bodies: {osm_analysis['natural_features']['water']}
-    - Woods: {osm_analysis['natural_features']['wood']}
-    - Parks: {osm_analysis['natural_features']['park']}
+    - Water bodies: {osm_analysis.get('natural_features', {{}}).get('water', 0)}
+    - Woods: {osm_analysis.get('natural_features', {{}}).get('wood', 0)}
+    - Parks: {osm_analysis.get('natural_features', {{}}).get('park', 0)}
 
     Amenities:
-    - Commercial: {osm_analysis['amenities']['commercial']}
-    - Public: {osm_analysis['amenities']['public']}
-    - Leisure: {osm_analysis['amenities']['leisure']}
+    - Commercial: {osm_analysis.get('amenities', {{}}).get('commercial', 0)}
+    - Public: {osm_analysis.get('amenities', {{}}).get('public', 0)}
+    - Leisure: {osm_analysis.get('amenities', {{}}).get('leisure', 0)}
 
     Street Types:
-    - Primary: {osm_analysis['street_types']['primary']}
-    - Secondary: {osm_analysis['street_types']['secondary']}
-    - Residential: {osm_analysis['street_types']['residential']}
+    - Primary: {osm_analysis.get('street_types', {{}}).get('primary', 0)}
+    - Secondary: {osm_analysis.get('street_types', {{}}).get('secondary', 0)}
+    - Residential: {osm_analysis.get('street_types', {{}}).get('residential', 0)}
 
     Create two DISTINCT styles that best match the user's description while being different from each other.
     Consider different approaches to:
