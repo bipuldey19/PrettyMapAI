@@ -14,7 +14,6 @@ import osmnx as ox
 import geopandas as gpd
 from shapely.geometry import box
 import warnings
-from stqdm import stqdm
 
 # Suppress specific warnings
 warnings.filterwarnings('ignore', category=FutureWarning)
@@ -433,7 +432,8 @@ def generate_map(area_bounds, params):
             radius=params.get('radius', 1000),
             layers=params.get('layers', {}),
             style=params.get('style', {}),
-            figsize=(12, 12)
+            figsize=(12, 12),
+            credit={}
         )
         
         # Convert plot to image
@@ -493,7 +493,7 @@ def main():
         )
         
         # Add a prominent button in full width
-        if st.button("🎨 Generate Beautiful Maps", use_container_width=True):
+        if st.button("🎨 Generate PrettyMaps", use_container_width=True):
             if not map_data or not map_data.get('last_active_drawing'):
                 st.error("Please draw an area on the map first!")
             else:
@@ -504,70 +504,56 @@ def main():
                     progress_message = progress_container.empty()
                     progress_message.info("Starting map generation process...")
                     
-                    # Extract bounds from the drawn area
+                    # Extract bounds from the drawn area (polygon or rectangle)
                     drawn_features = map_data['last_active_drawing']
-                    bounds = drawn_features['geometry']['coordinates'][0]
+                    coords = drawn_features['geometry']['coordinates'][0]
                     area_bounds = {
-                        'north': max(coord[1] for coord in bounds),
-                        'south': min(coord[1] for coord in bounds),
-                        'east': max(coord[0] for coord in bounds),
-                        'west': min(coord[0] for coord in bounds)
+                        'north': max(coord[1] for coord in coords),
+                        'south': min(coord[1] for coord in coords),
+                        'east': max(coord[0] for coord in coords),
+                        'west': min(coord[0] for coord in coords)
                     }
                     
                     # Step 1: Analyzing OSM data
                     progress_message.info("📊 Analyzing OpenStreetMap data...")
                     osm_analysis = analyze_osm_area(area_bounds)
                     
-                    if osm_analysis:
-                        # Show area analysis in a more subtle way
-                        with st.expander("Area Analysis", expanded=False):
-                            cols = st.columns(2)
-                            with cols[0]:
-                                st.metric("Area Size", f"{osm_analysis['area_size']/1000000:.2f} km²")
-                                st.metric("Buildings", osm_analysis['building_count'])
-                                st.metric("Streets", osm_analysis['street_count'])
-                            with cols[1]:
-                                st.metric("Water Bodies", osm_analysis['natural_features']['water'])
-                                st.metric("Parks", osm_analysis['natural_features']['park'])
-                                st.metric("Amenities", sum(osm_analysis['amenities'].values()))
+                    # Step 2: Getting AI analysis
+                    progress_message.info("🤖 Getting AI analysis for map styles...")
+                    ai_params = get_ai_analysis(area_bounds, osm_analysis, user_prompt)
+                    
+                    if ai_params and len(ai_params) == 2:  # Now expecting 2 maps
+                        # Step 3: Generating maps
+                        progress_message.info("🎨 Generating beautiful maps...")
                         
-                        # Step 2: Getting AI analysis
-                        progress_message.info("🤖 Getting AI analysis for map styles...")
-                        ai_params = get_ai_analysis(area_bounds, osm_analysis, user_prompt)
+                        # Create two columns for the maps
+                        map_cols = st.columns(2)
                         
-                        if ai_params and len(ai_params) == 2:  # Now expecting 2 maps
-                            # Step 3: Generating maps
-                            progress_message.info("🎨 Generating beautiful maps...")
-                            
-                            # Create two columns for the maps
-                            map_cols = st.columns(2)
-                            
-                            # Generate maps for each parameter set with progress bar
-                            for i, params in enumerate(stqdm(ai_params, desc="Generating maps")):
-                                with map_cols[i]:
-                                    map_name = params.get('name', f"Map Style {i+1}")
-                                    st.subheader(map_name)
-                                    map_image = generate_map(area_bounds, params)
+                        # Generate maps for each parameter set
+                        for i, params in enumerate(ai_params):
+                            with map_cols[i]:
+                                map_name = params.get('name', f"Map Style {i+1}")
+                                st.subheader(map_name)
+                                progress_message.info(f"Generating {map_name}...")
+                                map_image = generate_map(area_bounds, params)
+                                
+                                if map_image:
+                                    # Display the map
+                                    st.image(map_image, use_container_width=True)
                                     
-                                    if map_image:
-                                        # Display the map
-                                        st.image(map_image, use_container_width=True)
-                                        
-                                        # Add download button
-                                        btn = st.download_button(
-                                            label=f"Download {map_name}",
-                                            data=map_image,
-                                            file_name=f"pretty_map_{map_name.lower().replace(' ', '_')}.png",
-                                            mime="image/png",
-                                            use_container_width=True
-                                        )
-                            
-                            # Clear progress message when done
-                            progress_message.success("✨ Map generation complete! You can download your maps above.")
-                        else:
-                            progress_message.error("❌ Failed to generate map styles. Please try again.")
+                                    # Add download button
+                                    btn = st.download_button(
+                                        label=f"Download {map_name}",
+                                        data=map_image,
+                                        file_name=f"pretty_map_{map_name.lower().replace(' ', '_')}.png",
+                                        mime="image/png",
+                                        use_container_width=True
+                                    )
+                        
+                        # Clear progress message when done
+                        progress_message.success("✨ Map generation complete! You can download your maps above.")
                     else:
-                        progress_message.error("❌ Failed to analyze area. Please try again.")
+                        progress_message.error("❌ Failed to generate map styles. Please try again.")
         else:
             st.info("👆 Draw an area on the map to get started!")
 
