@@ -530,6 +530,10 @@ def main():
     st.title("🗺️ PrettyMapAI")
     st.write("Search for a location or draw an area on the map to generate beautiful visualizations!")
     
+    # Initialize session state for regeneration
+    if 'regenerate' not in st.session_state:
+        st.session_state.regenerate = False
+    
     # Create containers with borders
     map_container = st.container(border=True)
     with map_container:
@@ -571,6 +575,9 @@ def main():
         
         # Add a prominent button in full width
         if st.button("🎨 Generate PrettyMaps", use_container_width=True):
+            st.session_state.regenerate = True
+        
+        if st.session_state.regenerate:
             if not map_data or not map_data.get('last_active_drawing'):
                 st.error("Please draw an area on the map first!")
             else:
@@ -626,6 +633,7 @@ def main():
                                         if image_data:
                                             # Create a BytesIO object from the image data
                                             image_buffer = io.BytesIO(image_data)
+                                            image_buffer.seek(0)
                                             
                                             # Display the map
                                             st.image(image_buffer, use_container_width=True)
