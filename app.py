@@ -240,16 +240,17 @@ def get_ai_analysis(area_bounds, osm_analysis, user_prompt):
     Return ONLY a JSON array with exactly 2 objects. Each object must include:
     - name: A short descriptive name for the style
     - layers: All required layer configurations
-    - style: All style parameters
+    - style: All style parameters including:
+        - perimeter: Controls the map's border (fill, lw, zorder)
+        - background: Controls the background (fc, zorder)
+        - green: Controls green areas (fc, ec, hatch_c, hatch, lw, zorder)
+        - water: Controls water features (fc, ec, hatch_c, hatch, lw, zorder)
+        - streets: Controls streets (fc, ec, alpha, lw, zorder)
+        - building: Controls buildings (palette, ec, lw, zorder)
     - shape: "circle" or "rectangle" (map shape)
     - radius: number (in meters, only needed if shape is "circle")
     - figsize: [width, height]
     - dilate: number (circle dilation, default 0)
-    - bg_shape: "rectangle", "circle", or null (background shape)
-    - bg_buffer: number (0-50, how much background extends beyond figure)
-    - bg_color: string (hex color code)
-    - contour_width: number (0-30, thickness of contour line)
-    - contour_color: string (hex color code)
     - name_on: boolean (whether to display title)
     - name: string (title text, only include if name_on is true)
     - font_size: number (1-50, title font size)
@@ -263,9 +264,9 @@ def get_ai_analysis(area_bounds, osm_analysis, user_prompt):
     - For circular maps: set shape to "circle" and provide a radius
     - For rectangular maps: set shape to "rectangle" and radius can be omitted
     - The dilate parameter can be used to adjust the circle's size when using circular maps
-    - bg_shape controls the background shape independently of the map shape
-    - bg_buffer controls how much the background extends beyond the figure
-    - contour_width and contour_color control the map's border appearance
+    - Background and contour settings should be specified in the style dictionary:
+        - Use "perimeter" in style to control the map's border
+        - Use "background" in style to control the background appearance
 
     You can change any of the parameters to get a different style. Play with the parameters to get a different style. Get creative! Artistic and unique styles are preferred.
 
@@ -311,8 +312,9 @@ def get_ai_analysis(area_bounds, osm_analysis, user_prompt):
             "style": {{
                 "perimeter": {{
                     "fill": false,
-                    "lw": 0,
-                    "zorder": 0
+                    "lw": 2,
+                    "zorder": 0,
+                    "ec": "#2F3737"
                 }},
                 "background": {{
                     "fc": "#F2F4CB",
@@ -352,11 +354,6 @@ def get_ai_analysis(area_bounds, osm_analysis, user_prompt):
             "radius": 1500,
             "figsize": [12, 12],
             "dilate": 0,
-            "bg_shape": "circle",
-            "bg_buffer": 20,
-            "bg_color": "#F2F4CB",
-            "contour_width": 2,
-            "contour_color": "#2F3737",
             "name_on": false
         }},
         {{
@@ -370,11 +367,6 @@ def get_ai_analysis(area_bounds, osm_analysis, user_prompt):
             "shape": "rectangle",
             "figsize": [12, 12],
             "dilate": 0,
-            "bg_shape": "rectangle",
-            "bg_buffer": 15,
-            "bg_color": "#FFFFFF",
-            "contour_width": 1,
-            "contour_color": "#000000",
             "name_on": false
         }}
     ]
@@ -498,13 +490,6 @@ def generate_map_worker(args):
             figsize=params.get('figsize', (12, 12)),
             dilate=params.get('dilate', 0),
             credit={},
-            # Background settings
-            bg_shape=params.get('bg_shape'),
-            bg_buffer=params.get('bg_buffer', 0),
-            bg_color=params.get('bg_color'),
-            # Contour settings
-            contour_width=params.get('contour_width', 0),
-            contour_color=params.get('contour_color'),
             # Title settings (only if name_on is true)
             name_on=params.get('name_on', False),
             name=params.get('name', '') if params.get('name_on', False) else None,
