@@ -624,8 +624,11 @@ def main():
                                     try:
                                         image_data = future.result()
                                         if image_data:
+                                            # Create a BytesIO object from the image data
+                                            image_buffer = io.BytesIO(image_data)
+                                            
                                             # Display the map
-                                            st.image(image_data, use_container_width=True)
+                                            st.image(image_buffer, use_container_width=True)
                                             
                                             # Add download button
                                             btn = st.download_button(
@@ -637,6 +640,7 @@ def main():
                                             )
                                     except Exception as e:
                                         st.error(f"Error displaying map {map_name}: {str(e)}")
+                                        st.error(f"Error details: {str(e)}")
                         
                         # Clear progress message when done
                         progress_message.success("✨ Map generation complete! You can download your maps above.")
