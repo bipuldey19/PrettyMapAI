@@ -511,10 +511,13 @@ def generate_map(area_bounds, params):
         )
         buf.seek(0)
         
+        # Get the image data
+        image_data = buf.getvalue()
+        
         # Clear memory
         clear_memory()
         
-        return buf
+        return image_data
     except Exception as e:
         st.error(f"Error generating map: {str(e)}")
         return None
@@ -619,15 +622,15 @@ def main():
                                     map_name = params.get('name', f"Map Style {i+1}")
                                     st.subheader(map_name)
                                     try:
-                                        map_image = future.result()
-                                        if map_image:
+                                        image_data = future.result()
+                                        if image_data:
                                             # Display the map
-                                            st.image(map_image, use_container_width=True)
+                                            st.image(image_data, use_container_width=True)
                                             
                                             # Add download button
                                             btn = st.download_button(
                                                 label=f"Download {map_name}",
-                                                data=map_image.getvalue(),
+                                                data=image_data,
                                                 file_name=f"pretty_map_{map_name.lower().replace(' ', '_')}.png",
                                                 mime="image/png",
                                                 use_container_width=True
