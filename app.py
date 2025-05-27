@@ -587,16 +587,21 @@ def main():
                                 with map_cols[i]:
                                     map_name = params.get('name', f'Style {i+1}')
                                     st.subheader(map_name)
+                                    # Convert BytesIO to base64 for display
+                                    map_image.seek(0)
                                     st.image(map_image, use_container_width=True)
                                     
                                     # Add download button
                                     btn = st.download_button(
                                         label=f"Download {map_name}",
-                                        data=map_image,
+                                        data=map_image.getvalue(),
                                         file_name=f"pretty_map_{map_name.lower().replace(' ', '_')}.png",
                                         mime="image/png",
                                         use_container_width=True
                                     )
+                            else:
+                                with map_cols[i]:
+                                    st.error(f"Failed to generate map {i+1}")
                         
                         # Clear progress message when done
                         progress_message.success("✨ Map generation complete! You can download your maps above.")
