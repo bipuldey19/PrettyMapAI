@@ -84,32 +84,40 @@ def analyze_osm_area(area_bounds):
             tags={'natural': True}
         )
         
-        # Get amenities
-        amenities = ox.geometries_from_bbox(
-            area_bounds['north'], area_bounds['south'],
-            area_bounds['east'], area_bounds['west'],
-            tags={'amenity': True}
-        )
+        # Get amenities with error handling
+        try:
+            amenities = ox.geometries_from_bbox(
+                area_bounds['north'], area_bounds['south'],
+                area_bounds['east'], area_bounds['west'],
+                tags={'amenity': True}
+            )
+            commercial_count = len(amenities[amenities['amenity'].isin(['restaurant', 'cafe', 'shop'])]) if not amenities.empty else 0
+            public_count = len(amenities[amenities['amenity'].isin(['school', 'hospital', 'library'])]) if not amenities.empty else 0
+            leisure_count = len(amenities[amenities['amenity'].isin(['sports_centre', 'stadium', 'swimming_pool'])]) if not amenities.empty else 0
+        except Exception:
+            commercial_count = 0
+            public_count = 0
+            leisure_count = 0
         
         # Analyze the data
         analysis = {
             'area_size': bbox.area * 111319.9,  # Convert to square meters
-            'building_count': len(buildings),
-            'street_count': len(streets.edges),
+            'building_count': len(buildings) if not buildings.empty else 0,
+            'street_count': len(streets.edges) if hasattr(streets, 'edges') else 0,
             'natural_features': {
-                'water': len(natural[natural['natural'] == 'water']),
-                'wood': len(natural[natural['natural'] == 'wood']),
-                'park': len(natural[natural['natural'] == 'park'])
+                'water': len(natural[natural['natural'] == 'water']) if not natural.empty else 0,
+                'wood': len(natural[natural['natural'] == 'wood']) if not natural.empty else 0,
+                'park': len(natural[natural['natural'] == 'park']) if not natural.empty else 0
             },
             'amenities': {
-                'commercial': len(amenities[amenities['amenity'].isin(['restaurant', 'cafe', 'shop'])]),
-                'public': len(amenities[amenities['amenity'].isin(['school', 'hospital', 'library'])]),
-                'leisure': len(amenities[amenities['amenity'].isin(['sports_centre', 'stadium', 'swimming_pool'])])
+                'commercial': commercial_count,
+                'public': public_count,
+                'leisure': leisure_count
             },
             'street_types': {
-                'primary': len([e for e in streets.edges if streets.edges[e].get('highway') == 'primary']),
-                'secondary': len([e for e in streets.edges if streets.edges[e].get('highway') == 'secondary']),
-                'residential': len([e for e in streets.edges if streets.edges[e].get('highway') == 'residential'])
+                'primary': len([e for e in streets.edges if streets.edges[e].get('highway') == 'primary']) if hasattr(streets, 'edges') else 0,
+                'secondary': len([e for e in streets.edges if streets.edges[e].get('highway') == 'secondary']) if hasattr(streets, 'edges') else 0,
+                'residential': len([e for e in streets.edges if streets.edges[e].get('highway') == 'residential']) if hasattr(streets, 'edges') else 0
             }
         }
         
@@ -562,13 +570,8 @@ def main():
                 # Create a progress container
                 progress_container = st.container(border=True)
                 with progress_container:
-                    # Initialize progress bar
-                    progress_bar = st.progress(0)
-                    progress_text = st.empty()
-                    
-                    # Step 1: Analyzing OSM data
-                    progress_text.text("📊 Analyzing OpenStreetMap data...")
-                    progress_bar.progress(25)
+                    # Initialize progress message
+                    progress_message = progress_container.empty()
                     
                     # Extract bounds from the drawn area (polygon or rectangle)
                     drawn_features = map_data['last_active_drawing']
@@ -580,21 +583,21 @@ def main():
                         'west': min(coord[0] for coord in coords)
                     }
                     
+                    # Step 1: Analyzing OSM data
+                    progress_message.info("📊 Analyzing OpenStreetMap data...")
                     osm_analysis = analyze_osm_area(area_bounds)
                     
                     if not osm_analysis:
-                        progress_text.error("❌ Failed to analyze area. Please try again.")
+                        progress_message.error("❌ Failed to analyze area. Please try again.")
                         return
                     
                     # Step 2: Getting AI analysis
-                    progress_text.text("🤖 Getting AI analysis for map styles...")
-                    progress_bar.progress(50)
+                    progress_message.info("🤖 Getting AI analysis for map styles...")
                     ai_params = get_ai_analysis(area_bounds, osm_analysis, user_prompt)
                     
                     if ai_params and len(ai_params) == 2:  # Now expecting 2 maps
                         # Step 3: Generating maps
-                        progress_text.text("🎨 Generating beautiful maps...")
-                        progress_bar.progress(75)
+                        progress_message.info("🎨 Generating beautiful maps...")
                         
                         # Create two columns for the maps
                         map_cols = st.columns(2)
@@ -628,11 +631,10 @@ def main():
                                     except Exception as e:
                                         st.error(f"Error displaying map {map_name}: {str(e)}")
                         
-                        # Update progress to complete
-                        progress_bar.progress(100)
-                        progress_text.success("✨ Map generation complete! You can download your maps above.")
+                        # Clear progress message when done
+                        progress_message.success("✨ Map generation complete! You can download your maps above.")
                     else:
-                        progress_text.error("❌ Failed to generate map styles. Please try again.")
+                        progress_message.error("❌ Failed to generate map styles. Please try again.")
         else:
             st.info("👆 Draw an area on the map to get started!")
 
