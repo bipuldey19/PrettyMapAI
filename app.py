@@ -55,7 +55,7 @@ def get_cache_key(area_bounds, params):
     }, sort_keys=True)
     return hashlib.md5(key_data.encode()).hexdigest()
 
-@st.cache_data(ttl=CACHE_TTL)
+@st.cache_data(ttl=CACHE_TTL, show_spinner=False)
 def analyze_osm_area(area_bounds):
     """Analyze the area using OpenStreetMap data with caching"""
     try:
@@ -233,7 +233,7 @@ def get_openrouter_api_key():
         raise ValueError("No OpenRouter API keys found in environment variables.")
     return random.choice(keys)
 
-@st.cache_data(ttl=CACHE_TTL)
+@st.cache_data(ttl=CACHE_TTL, show_spinner=False)
 def get_ai_analysis(area_bounds, osm_analysis, user_prompt):
     """Get AI analysis for the selected area using OpenRouter API with caching"""
     OPENROUTER_API_KEY = get_openrouter_api_key()
@@ -469,7 +469,7 @@ def clear_memory():
     gc.collect()
     plt.close('all')
 
-@st.cache_data(ttl=CACHE_TTL)
+@st.cache_data(ttl=CACHE_TTL, show_spinner=False)
 def generate_map(area_bounds, params):
     """Generate a map using PrettyMaps with given parameters and remove copyright text with caching"""
     try:
