@@ -603,8 +603,8 @@ def main():
                     }
                     
                     # Step 1: Analyzing OSM data
-                    progress_message.info("Running analyze_osm_area(...)")
                     start_time = time.time()
+                    progress_message.info("Running analyze_osm_area(...)")
                     osm_analysis = analyze_osm_area(area_bounds)
                     elapsed_time = time.time() - start_time
                     progress_message.info(f"Running analyze_osm_area(...) - Completed in {format_time(elapsed_time)}")
@@ -614,16 +614,16 @@ def main():
                         return
                     
                     # Step 2: Getting AI analysis
-                    progress_message.info("Running get_ai_analysis(...)")
                     start_time = time.time()
+                    progress_message.info("Running get_ai_analysis(...)")
                     ai_params = get_ai_analysis(area_bounds, osm_analysis, user_prompt)
                     elapsed_time = time.time() - start_time
                     progress_message.info(f"Running get_ai_analysis(...) - Completed in {format_time(elapsed_time)}")
                     
                     if ai_params and len(ai_params) == 2:  # Now expecting 2 maps
                         # Step 3: Generating maps
-                        progress_message.info("Running generate_map(...)")
                         start_time = time.time()
+                        progress_message.info("Running generate_map(...)")
                         
                         # Create two columns for the maps
                         map_cols = st.columns(2)
@@ -643,8 +643,14 @@ def main():
                                     try:
                                         image_buffer = future.result()
                                         if image_buffer:
+                                            # Reset buffer position
+                                            image_buffer.seek(0)
+                                            
                                             # Display the map
                                             st.image(image_buffer, use_container_width=True)
+                                            
+                                            # Reset buffer position again for download
+                                            image_buffer.seek(0)
                                             
                                             # Add download button
                                             btn = st.download_button(
