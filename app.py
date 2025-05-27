@@ -451,14 +451,16 @@ def generate_map_worker(args):
         )
         
         # Remove copyright/attribution text from the figure
-        ax = plot.fig.gca()
-        for text in ax.texts:
-            if (
-                '© OpenStreetMap' in text.get_text()
-                or 'prettymaps' in text.get_text()
-                or 'OpenStreetMap contributors' in text.get_text()
-            ):
-                text.set_visible(False)
+        for ax in plot.fig.axes:
+            for text in ax.texts:
+                if any(copyright_text in text.get_text().lower() for copyright_text in [
+                    '© openstreetmap',
+                    'prettymaps',
+                    'openstreetmap contributors',
+                    'copyright',
+                    'attribution'
+                ]):
+                    text.set_visible(False)
         
         # Convert plot to image
         buf = io.BytesIO()
