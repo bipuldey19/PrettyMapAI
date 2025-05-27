@@ -70,12 +70,22 @@ def analyze_osm_area(area_bounds):
             tags={'building': True}
         )
         
-        # Get streets
-        streets = ox.graph_from_bbox(
-            area_bounds['north'], area_bounds['south'],
-            area_bounds['east'], area_bounds['west'],
-            network_type='all'
-        )
+        # Get streets with error handling
+        try:
+            streets = ox.graph_from_bbox(
+                area_bounds['north'], area_bounds['south'],
+                area_bounds['east'], area_bounds['west'],
+                network_type='all'
+            )
+            street_count = len(streets.edges) if hasattr(streets, 'edges') else 0
+            primary_count = len([e for e in streets.edges if streets.edges[e].get('highway') == 'primary']) if hasattr(streets, 'edges') else 0
+            secondary_count = len([e for e in streets.edges if streets.edges[e].get('highway') == 'secondary']) if hasattr(streets, 'edges') else 0
+            residential_count = len([e for e in streets.edges if streets.edges[e].get('highway') == 'residential']) if hasattr(streets, 'edges') else 0
+        except Exception:
+            street_count = 0
+            primary_count = 0
+            secondary_count = 0
+            residential_count = 0
         
         # Get natural features
         natural = ox.geometries_from_bbox(
@@ -103,7 +113,7 @@ def analyze_osm_area(area_bounds):
         analysis = {
             'area_size': bbox.area * 111319.9,  # Convert to square meters
             'building_count': len(buildings) if not buildings.empty else 0,
-            'street_count': len(streets.edges) if hasattr(streets, 'edges') else 0,
+            'street_count': street_count,
             'natural_features': {
                 'water': len(natural[natural['natural'] == 'water']) if not natural.empty else 0,
                 'wood': len(natural[natural['natural'] == 'wood']) if not natural.empty else 0,
@@ -115,9 +125,9 @@ def analyze_osm_area(area_bounds):
                 'leisure': leisure_count
             },
             'street_types': {
-                'primary': len([e for e in streets.edges if streets.edges[e].get('highway') == 'primary']) if hasattr(streets, 'edges') else 0,
-                'secondary': len([e for e in streets.edges if streets.edges[e].get('highway') == 'secondary']) if hasattr(streets, 'edges') else 0,
-                'residential': len([e for e in streets.edges if streets.edges[e].get('highway') == 'residential']) if hasattr(streets, 'edges') else 0
+                'primary': primary_count,
+                'secondary': secondary_count,
+                'residential': residential_count
             }
         }
         
@@ -578,52 +588,51 @@ def main():
                     }
                     
                     # Step 1: Analyzing OSM data
-                    progress_message.info("Running analyze_osm_area(...)")
-                    osm_analysis = analyze_osm_area(area_bounds)
+                    with st.spinner("Running analyze_osm_area(...)"):
+                        osm_analysis = analyze_osm_area(area_bounds)
                     
                     if not osm_analysis:
                         progress_message.error("❌ Failed to analyze area. Please try again.")
                         return
                     
                     # Step 2: Getting AI analysis
-                    progress_message.info("Running get_ai_analysis(...)")
-                    ai_params = get_ai_analysis(area_bounds, osm_analysis, user_prompt)
+                    with st.spinner("Running get_ai_analysis(...)"):
+                        ai_params = get_ai_analysis(area_bounds, osm_analysis, user_prompt)
                     
                     if ai_params and len(ai_params) == 2:  # Now expecting 2 maps
                         # Step 3: Generating maps
-                        progress_message.info("Running generate_map(...)")
-                        
-                        # Create two columns for the maps
-                        map_cols = st.columns(2)
-                        
-                        # Generate maps for each parameter set
-                        with ThreadPoolExecutor(max_workers=2) as executor:
-                            future_to_map = {
-                                executor.submit(generate_map, area_bounds, params): (i, params)
-                                for i, params in enumerate(ai_params)
-                            }
+                        with st.spinner("Running generate_map(...)"):
+                            # Create two columns for the maps
+                            map_cols = st.columns(2)
                             
-                            for future in future_to_map:
-                                i, params = future_to_map[future]
-                                with map_cols[i]:
-                                    map_name = params.get('name', f"Map Style {i+1}")
-                                    st.subheader(map_name)
-                                    try:
-                                        map_image = future.result()
-                                        if map_image:
-                                            # Display the map
-                                            st.image(map_image, use_container_width=True)
-                                            
-                                            # Add download button
-                                            btn = st.download_button(
-                                                label=f"Download {map_name}",
-                                                data=map_image.getvalue(),
-                                                file_name=f"pretty_map_{map_name.lower().replace(' ', '_')}.png",
-                                                mime="image/png",
-                                                use_container_width=True
-                                            )
-                                    except Exception as e:
-                                        st.error(f"Error displaying map {map_name}: {str(e)}")
+                            # Generate maps for each parameter set
+                            with ThreadPoolExecutor(max_workers=2) as executor:
+                                future_to_map = {
+                                    executor.submit(generate_map, area_bounds, params): (i, params)
+                                    for i, params in enumerate(ai_params)
+                                }
+                                
+                                for future in future_to_map:
+                                    i, params = future_to_map[future]
+                                    with map_cols[i]:
+                                        map_name = params.get('name', f"Map Style {i+1}")
+                                        st.subheader(map_name)
+                                        try:
+                                            map_image = future.result()
+                                            if map_image:
+                                                # Display the map
+                                                st.image(map_image, use_container_width=True)
+                                                
+                                                # Add download button
+                                                btn = st.download_button(
+                                                    label=f"Download {map_name}",
+                                                    data=map_image.getvalue(),
+                                                    file_name=f"pretty_map_{map_name.lower().replace(' ', '_')}.png",
+                                                    mime="image/png",
+                                                    use_container_width=True
+                                                )
+                                        except Exception as e:
+                                            st.error(f"Error displaying map {map_name}: {str(e)}")
                         
                         # Clear progress message when done
                         progress_message.success("✨ Map generation complete! You can download your maps above.")
