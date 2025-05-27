@@ -562,9 +562,13 @@ def main():
                 # Create a progress container
                 progress_container = st.container(border=True)
                 with progress_container:
-                    # Initialize progress message
-                    progress_message = progress_container.empty()
-                    progress_message.info("Starting map generation process...")
+                    # Initialize progress bar
+                    progress_bar = st.progress(0)
+                    progress_text = st.empty()
+                    
+                    # Step 1: Analyzing OSM data
+                    progress_text.text("📊 Analyzing OpenStreetMap data...")
+                    progress_bar.progress(25)
                     
                     # Extract bounds from the drawn area (polygon or rectangle)
                     drawn_features = map_data['last_active_drawing']
@@ -576,21 +580,21 @@ def main():
                         'west': min(coord[0] for coord in coords)
                     }
                     
-                    # Step 1: Analyzing OSM data
-                    progress_message.info("📊 Analyzing OpenStreetMap data...")
                     osm_analysis = analyze_osm_area(area_bounds)
                     
                     if not osm_analysis:
-                        progress_message.error("❌ Failed to analyze area. Please try again.")
+                        progress_text.error("❌ Failed to analyze area. Please try again.")
                         return
                     
                     # Step 2: Getting AI analysis
-                    progress_message.info("🤖 Getting AI analysis for map styles...")
+                    progress_text.text("🤖 Getting AI analysis for map styles...")
+                    progress_bar.progress(50)
                     ai_params = get_ai_analysis(area_bounds, osm_analysis, user_prompt)
                     
                     if ai_params and len(ai_params) == 2:  # Now expecting 2 maps
                         # Step 3: Generating maps
-                        progress_message.info("🎨 Generating beautiful maps...")
+                        progress_text.text("🎨 Generating beautiful maps...")
+                        progress_bar.progress(75)
                         
                         # Create two columns for the maps
                         map_cols = st.columns(2)
@@ -601,27 +605,34 @@ def main():
                                 executor.submit(generate_map, area_bounds, params): (i, params)
                                 for i, params in enumerate(ai_params)
                             }
+                            
                             for future in future_to_map:
                                 i, params = future_to_map[future]
                                 with map_cols[i]:
                                     map_name = params.get('name', f"Map Style {i+1}")
                                     st.subheader(map_name)
-                                    map_image = future.result()
-                                    if map_image:
-                                        st.image(map_image, use_container_width=True)
-                                        # Add download button
-                                        btn = st.download_button(
-                                            label=f"Download {map_name}",
-                                            data=map_image,
-                                            file_name=f"pretty_map_{map_name.lower().replace(' ', '_')}.png",
-                                            mime="image/png",
-                                            use_container_width=True
-                                        )
+                                    try:
+                                        map_image = future.result()
+                                        if map_image:
+                                            # Display the map
+                                            st.image(map_image, use_container_width=True)
+                                            
+                                            # Add download button
+                                            btn = st.download_button(
+                                                label=f"Download {map_name}",
+                                                data=map_image.getvalue(),
+                                                file_name=f"pretty_map_{map_name.lower().replace(' ', '_')}.png",
+                                                mime="image/png",
+                                                use_container_width=True
+                                            )
+                                    except Exception as e:
+                                        st.error(f"Error displaying map {map_name}: {str(e)}")
                         
-                        # Clear progress message when done
-                        progress_message.success("✨ Map generation complete! You can download your maps above.")
+                        # Update progress to complete
+                        progress_bar.progress(100)
+                        progress_text.success("✨ Map generation complete! You can download your maps above.")
                     else:
-                        progress_message.error("❌ Failed to generate map styles. Please try again.")
+                        progress_text.error("❌ Failed to generate map styles. Please try again.")
         else:
             st.info("👆 Draw an area on the map to get started!")
 
