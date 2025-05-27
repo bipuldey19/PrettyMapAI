@@ -19,6 +19,8 @@ import random
 import hashlib
 from functools import lru_cache
 from concurrent.futures import ThreadPoolExecutor
+import time
+from datetime import timedelta
 
 # Suppress specific warnings
 warnings.filterwarnings('ignore', category=FutureWarning)
@@ -499,28 +501,28 @@ def generate_map(area_bounds, params):
             ):
                 text.set_visible(False)
         
-        # Convert plot to image with optimized settings
+        # Convert plot to image
         buf = io.BytesIO()
         plot.fig.savefig(
             buf,
             format='png',
             bbox_inches='tight',
             dpi=300,
-            optimize=True,  # Enable PNG optimization
             transparent=False
         )
         buf.seek(0)
         
-        # Get the image data
-        image_data = buf.getvalue()
-        
         # Clear memory
         clear_memory()
         
-        return image_data
+        return buf
     except Exception as e:
         st.error(f"Error generating map: {str(e)}")
         return None
+
+def format_time(seconds):
+    """Format seconds into a readable time string"""
+    return str(timedelta(seconds=round(seconds)))
 
 def main():
     # Load custom CSS
@@ -587,6 +589,9 @@ def main():
                     # Initialize progress message
                     progress_message = progress_container.empty()
                     
+                    # Start total timer
+                    total_start_time = time.time()
+                    
                     # Extract bounds from the drawn area (polygon or rectangle)
                     drawn_features = map_data['last_active_drawing']
                     coords = drawn_features['geometry']['coordinates'][0]
@@ -599,7 +604,10 @@ def main():
                     
                     # Step 1: Analyzing OSM data
                     progress_message.info("Running analyze_osm_area(...)")
+                    start_time = time.time()
                     osm_analysis = analyze_osm_area(area_bounds)
+                    elapsed_time = time.time() - start_time
+                    progress_message.info(f"Running analyze_osm_area(...) - Completed in {format_time(elapsed_time)}")
                     
                     if not osm_analysis:
                         progress_message.error("❌ Failed to analyze area. Please try again.")
@@ -607,11 +615,15 @@ def main():
                     
                     # Step 2: Getting AI analysis
                     progress_message.info("Running get_ai_analysis(...)")
+                    start_time = time.time()
                     ai_params = get_ai_analysis(area_bounds, osm_analysis, user_prompt)
+                    elapsed_time = time.time() - start_time
+                    progress_message.info(f"Running get_ai_analysis(...) - Completed in {format_time(elapsed_time)}")
                     
                     if ai_params and len(ai_params) == 2:  # Now expecting 2 maps
                         # Step 3: Generating maps
                         progress_message.info("Running generate_map(...)")
+                        start_time = time.time()
                         
                         # Create two columns for the maps
                         map_cols = st.columns(2)
@@ -629,19 +641,15 @@ def main():
                                     map_name = params.get('name', f"Map Style {i+1}")
                                     st.subheader(map_name)
                                     try:
-                                        image_data = future.result()
-                                        if image_data:
-                                            # Create a BytesIO object from the image data
-                                            image_buffer = io.BytesIO(image_data)
-                                            image_buffer.seek(0)
-                                            
+                                        image_buffer = future.result()
+                                        if image_buffer:
                                             # Display the map
                                             st.image(image_buffer, use_container_width=True)
                                             
                                             # Add download button
                                             btn = st.download_button(
                                                 label=f"Download {map_name}",
-                                                data=image_data,
+                                                data=image_buffer.getvalue(),
                                                 file_name=f"pretty_map_{map_name.lower().replace(' ', '_')}.png",
                                                 mime="image/png",
                                                 use_container_width=True
@@ -650,8 +658,12 @@ def main():
                                         st.error(f"Error displaying map {map_name}: {str(e)}")
                                         st.error(f"Error details: {str(e)}")
                         
-                        # Clear progress message when done
-                        progress_message.success("✨ Map generation complete! You can download your maps above.")
+                        elapsed_time = time.time() - start_time
+                        progress_message.info(f"Running generate_map(...) - Completed in {format_time(elapsed_time)}")
+                        
+                        # Calculate and show total elapsed time
+                        total_elapsed_time = time.time() - total_start_time
+                        progress_message.success(f"✨ Map generation complete! Total time: {format_time(total_elapsed_time)}")
                     else:
                         progress_message.error("❌ Failed to generate map styles. Please try again.")
         else:
