@@ -247,26 +247,24 @@ def get_ai_analysis(area_bounds, osm_analysis, user_prompt):
         - water: Controls water features (fc, ec, hatch_c, hatch, lw, zorder)
         - streets: Controls streets (fc, ec, alpha, lw, zorder)
         - building: Controls buildings (palette, ec, lw, zorder)
+        - title: Controls the title (only include if user requests a title)
+            - text: The title text
+            - fontsize: Size of title text (1-50)
+            - color: Title color (hex code)
+            - x: Horizontal position (-100 to 100)
+            - y: Vertical position (-100 to 100)
+            - rotation: Rotation angle (-90 to 90)
     - shape: "circle" or "rectangle" (map shape)
     - radius: number (in meters, only needed if shape is "circle")
     - figsize: [width, height]
     - dilate: number (circle dilation, default 0)
-    - name_on: boolean (whether to display title)
-    - name: string (title text, only include if name_on is true)
-    - font_size: number (1-50, title font size)
-    - font_color: string (hex color code)
-    - text_x: number (-100 to 100, title horizontal position)
-    - text_y: number (-100 to 100, title vertical position)
-    - text_rotation: number (-90 to 90, title rotation in degrees)
 
     Important notes:
-    - Only include title-related parameters (name_on, name, font_size, etc.) if the user specifically requests a title
+    - Only include title settings in the style dictionary if the user specifically requests a title
     - For circular maps: set shape to "circle" and provide a radius
     - For rectangular maps: set shape to "rectangle" and radius can be omitted
     - The dilate parameter can be used to adjust the circle's size when using circular maps
-    - Background and contour settings should be specified in the style dictionary:
-        - Use "perimeter" in style to control the map's border
-        - Use "background" in style to control the background appearance
+    - All visual settings (background, contour, title) should be specified in the style dictionary
 
     You can change any of the parameters to get a different style. Play with the parameters to get a different style. Get creative! Artistic and unique styles are preferred.
 
@@ -353,8 +351,7 @@ def get_ai_analysis(area_bounds, osm_analysis, user_prompt):
             "shape": "circle",
             "radius": 1500,
             "figsize": [12, 12],
-            "dilate": 0,
-            "name_on": false
+            "dilate": 0
         }},
         {{
             "name": "Modern Style",
@@ -366,8 +363,7 @@ def get_ai_analysis(area_bounds, osm_analysis, user_prompt):
             }},
             "shape": "rectangle",
             "figsize": [12, 12],
-            "dilate": 0,
-            "name_on": false
+            "dilate": 0
         }}
     ]
 
@@ -481,23 +477,27 @@ def generate_map_worker(args):
             # If rectangular, use a large radius to cover the area
             radius = None
         
+        # Add title settings to style if name_on is true
+        style = params.get('style', {}).copy()
+        if params.get('name_on', False):
+            style['title'] = {
+                'text': params.get('name', ''),
+                'fontsize': params.get('font_size', 20),
+                'color': params.get('font_color', '#000000'),
+                'x': params.get('text_x', 0),
+                'y': params.get('text_y', 0),
+                'rotation': params.get('text_rotation', 0)
+            }
+        
         # Create the plot with all parameters
         plot = prettymaps.plot(
             (center_lat, center_lon),
             radius=radius,
             layers=params.get('layers', {}),
-            style=params.get('style', {}),
+            style=style,
             figsize=params.get('figsize', (12, 12)),
             dilate=params.get('dilate', 0),
-            credit={},
-            # Title settings (only if name_on is true)
-            name_on=params.get('name_on', False),
-            name=params.get('name', '') if params.get('name_on', False) else None,
-            font_size=params.get('font_size', 20) if params.get('name_on', False) else None,
-            font_color=params.get('font_color', '#000000') if params.get('name_on', False) else None,
-            text_x=params.get('text_x', 0) if params.get('name_on', False) else None,
-            text_y=params.get('text_y', 0) if params.get('name_on', False) else None,
-            text_rotation=params.get('text_rotation', 0) if params.get('name_on', False) else None
+            credit={}
         )
         
         # Remove copyright/attribution text from the figure
