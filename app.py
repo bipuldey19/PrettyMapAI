@@ -241,17 +241,28 @@ def get_ai_analysis(area_bounds, osm_analysis, user_prompt):
     - name: A short descriptive name for the style
     - layers: All required layer configurations
     - style: All style parameters
-    - circle: true/false
-    - radius: number
+    - circle: true/false (whether to use circular or rectangular shape)
+    - radius: number (in meters, only needed if circle is true)
     - figsize: [width, height]
-    - scale_x: number
-    - scale_y: number
-    - adjust_aspect_ratio: true/false
+    - contour_width: number (width of map contour)
+    - contour_color: string (color of map contour)
+    - name_on: boolean (whether to display location name)
+    - name: string (location name to display)
+    - font_size: number (size of location name)
+    - font_color: string (color of location name)
+    - text_x: number (x position of location name)
+    - text_y: number (y position of location name)
+    - text_rotation: number (rotation of location name)
+    - bg_shape: "circle" or "rectangle" (background shape)
+    - bg_buffer: number (buffer around the map)
+    - bg_color: string (background color)
+    
+    You can change any of the parameters to get a different style. And only add location name if user wants to. Play with the parameters to get a different style. Get creative! Artistic and unique styles are preferred.
 
     Example structure (modify the values, keep the structure):
     [
         {{
-            "name": "Style Name",
+            "name": "Vintage Style",
             "layers": {{
                 "perimeter": {{}},
                 "streets": {{
@@ -329,17 +340,19 @@ def get_ai_analysis(area_bounds, osm_analysis, user_prompt):
             }},
             "circle": true,
             "radius": 1500,
-            "dilate": 0,
             "figsize": [12, 12],
-            "scale_x": 1,
-            "scale_y": 1,
-            "adjust_aspect_ratio": true,
-            "keypoints": {{
-                "tags": {{"natural": ["beach", "peak"]}},
-                "specific": {{
-                    "central park": {{"tags": {{"leisure": "park"}}}}
-                }}
-            }}
+            "contour_width": 2,
+            "contour_color": "#2F3537",
+            "name_on": true,
+            "name": "City Center",
+            "font_size": 25,
+            "font_color": "#2F3737",
+            "text_x": 0,
+            "text_y": 0,
+            "text_rotation": 0,
+            "bg_shape": "circle",
+            "bg_buffer": 2,
+            "bg_color": "#F2F4CB"
         }}
     ]
 
@@ -453,16 +466,27 @@ def generate_map_worker(args):
             # If not circular, use a large radius to cover the area
             radius = None
         
-        # Create the plot with only supported parameters
+        # Create the plot with correct parameters
         plot = prettymaps.plot(
             (center_lat, center_lon),
             radius=radius,
             layers=params.get('layers', {}),
             style=params.get('style', {}),
             figsize=params.get('figsize', (12, 12)),
-            circle=params.get('circle', False),
-            dilate=params.get('dilate', 0),
-            credit={}
+            shape="circle" if params.get('circle', False) else "rectangle",
+            contour_width=params.get('contour_width', 0),
+            contour_color=params.get('contour_color', "#2F3537"),
+            name_on=params.get('name_on', False),
+            name=params.get('name', ""),
+            font_size=params.get('font_size', 25),
+            font_color=params.get('font_color', "#2F3737"),
+            text_x=params.get('text_x', 0),
+            text_y=params.get('text_y', 0),
+            text_rotation=params.get('text_rotation', 0),
+            credits=False,  # We'll handle credits manually
+            bg_shape=params.get('bg_shape', "circle"),
+            bg_buffer=params.get('bg_buffer', 2),
+            bg_color=params.get('bg_color', "#F2F4CB")
         )
         
         # Remove copyright/attribution text from the figure
