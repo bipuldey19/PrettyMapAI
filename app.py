@@ -241,10 +241,31 @@ def get_ai_analysis(area_bounds, osm_analysis, user_prompt):
     - name: A short descriptive name for the style
     - layers: All required layer configurations
     - style: All style parameters
-    - circle: true/false (whether to use circular or rectangular shape)
-    - radius: number (in meters, only needed if circle is true)
+    - shape: "circle" or "rectangle" (map shape)
+    - radius: number (in meters, only needed if shape is "circle")
     - figsize: [width, height]
     - dilate: number (circle dilation, default 0)
+    - bg_shape: "rectangle", "circle", or null (background shape)
+    - bg_buffer: number (0-50, how much background extends beyond figure)
+    - bg_color: string (hex color code)
+    - contour_width: number (0-30, thickness of contour line)
+    - contour_color: string (hex color code)
+    - name_on: boolean (whether to display title)
+    - name: string (title text, only include if name_on is true)
+    - font_size: number (1-50, title font size)
+    - font_color: string (hex color code)
+    - text_x: number (-100 to 100, title horizontal position)
+    - text_y: number (-100 to 100, title vertical position)
+    - text_rotation: number (-90 to 90, title rotation in degrees)
+
+    Important notes:
+    - Only include title-related parameters (name_on, name, font_size, etc.) if the user specifically requests a title
+    - For circular maps: set shape to "circle" and provide a radius
+    - For rectangular maps: set shape to "rectangle" and radius can be omitted
+    - The dilate parameter can be used to adjust the circle's size when using circular maps
+    - bg_shape controls the background shape independently of the map shape
+    - bg_buffer controls how much the background extends beyond the figure
+    - contour_width and contour_color control the map's border appearance
 
     You can change any of the parameters to get a different style. Play with the parameters to get a different style. Get creative! Artistic and unique styles are preferred.
 
@@ -327,10 +348,34 @@ def get_ai_analysis(area_bounds, osm_analysis, user_prompt):
                     "zorder": 5
                 }}
             }},
-            "circle": true,
+            "shape": "circle",
             "radius": 1500,
             "figsize": [12, 12],
-            "dilate": 0
+            "dilate": 0,
+            "bg_shape": "circle",
+            "bg_buffer": 20,
+            "bg_color": "#F2F4CB",
+            "contour_width": 2,
+            "contour_color": "#2F3737",
+            "name_on": false
+        }},
+        {{
+            "name": "Modern Style",
+            "layers": {{
+                // ... similar layer structure ...
+            }},
+            "style": {{
+                // ... different style parameters ...
+            }},
+            "shape": "rectangle",
+            "figsize": [12, 12],
+            "dilate": 0,
+            "bg_shape": "rectangle",
+            "bg_buffer": 15,
+            "bg_color": "#FFFFFF",
+            "contour_width": 1,
+            "contour_color": "#000000",
+            "name_on": false
         }}
     ]
 
@@ -432,8 +477,8 @@ def generate_map_worker(args):
         center_lon = (area_bounds['east'] + area_bounds['west']) / 2
         
         # Get radius from params or calculate from bounds
-        if params.get('circle', False):
-            # If circle is True, use the specified radius or calculate from bounds
+        if params.get('shape') == 'circle':
+            # If circular map, use the specified radius or calculate from bounds
             radius = params.get('radius', None)
             if radius is None:
                 # Calculate radius from bounds if not specified
@@ -441,19 +486,33 @@ def generate_map_worker(args):
                 lon_diff = abs(area_bounds['east'] - area_bounds['west'])
                 radius = max(lat_diff, lon_diff) * 111319.9 / 2  # Convert to meters
         else:
-            # If not circular, use a large radius to cover the area
+            # If rectangular, use a large radius to cover the area
             radius = None
         
-        # Create the plot with correct parameters
+        # Create the plot with all parameters
         plot = prettymaps.plot(
             (center_lat, center_lon),
             radius=radius,
             layers=params.get('layers', {}),
             style=params.get('style', {}),
             figsize=params.get('figsize', (12, 12)),
-            rectangular=not params.get('circle', False),  # Use rectangular parameter instead of shape
             dilate=params.get('dilate', 0),
-            credit={}
+            credit={},
+            # Background settings
+            bg_shape=params.get('bg_shape'),
+            bg_buffer=params.get('bg_buffer', 0),
+            bg_color=params.get('bg_color'),
+            # Contour settings
+            contour_width=params.get('contour_width', 0),
+            contour_color=params.get('contour_color'),
+            # Title settings (only if name_on is true)
+            name_on=params.get('name_on', False),
+            name=params.get('name', '') if params.get('name_on', False) else None,
+            font_size=params.get('font_size', 20) if params.get('name_on', False) else None,
+            font_color=params.get('font_color', '#000000') if params.get('name_on', False) else None,
+            text_x=params.get('text_x', 0) if params.get('name_on', False) else None,
+            text_y=params.get('text_y', 0) if params.get('name_on', False) else None,
+            text_rotation=params.get('text_rotation', 0) if params.get('name_on', False) else None
         )
         
         # Remove copyright/attribution text from the figure
