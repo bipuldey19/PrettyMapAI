@@ -16,6 +16,16 @@ from shapely.geometry import box
 import warnings
 import re
 import random
+import concurrent.futures
+import psutil
+import gc
+from typing import Dict, List, Optional, Tuple, Union
+import logging
+from functools import lru_cache
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Suppress specific warnings
 warnings.filterwarnings('ignore', category=FutureWarning)
@@ -23,6 +33,12 @@ warnings.filterwarnings('ignore', category=UserWarning)
 
 # Load environment variables
 load_dotenv()
+
+# Constants
+MAX_WORKERS = 4  # Maximum number of parallel workers
+MAX_MEMORY_PERCENT = 80  # Maximum memory usage percentage
+MIN_AREA_SIZE = 100  # Minimum area size in square meters
+MAX_AREA_SIZE = 10000000  # Maximum area size in square meters
 
 # Set page config
 st.set_page_config(
@@ -37,9 +53,57 @@ if 'selected_area' not in st.session_state:
 if 'generated_maps' not in st.session_state:
     st.session_state.generated_maps = []
 
-def analyze_osm_area(area_bounds):
-    """Analyze the area using OpenStreetMap data"""
+def validate_area_bounds(area_bounds: Dict[str, float]) -> Tuple[bool, Optional[str]]:
+    """Validate the area bounds for map generation."""
     try:
+        # Check if all required keys are present
+        required_keys = ['north', 'south', 'east', 'west']
+        if not all(key in area_bounds for key in required_keys):
+            return False, "Missing required coordinates in area bounds"
+
+        # Validate coordinate ranges
+        if not (-90 <= area_bounds['north'] <= 90 and -90 <= area_bounds['south'] <= 90):
+            return False, "Latitude must be between -90 and 90 degrees"
+        if not (-180 <= area_bounds['east'] <= 180 and -180 <= area_bounds['west'] <= 180):
+            return False, "Longitude must be between -180 and 180 degrees"
+
+        # Validate coordinate order
+        if area_bounds['north'] <= area_bounds['south']:
+            return False, "North coordinate must be greater than south coordinate"
+        if area_bounds['east'] <= area_bounds['west']:
+            return False, "East coordinate must be greater than west coordinate"
+
+        # Calculate area size
+        bbox = box(area_bounds['west'], area_bounds['south'], 
+                  area_bounds['east'], area_bounds['north'])
+        area_size = bbox.area * 111319.9  # Convert to square meters
+
+        if area_size < MIN_AREA_SIZE:
+            return False, f"Area is too small (minimum {MIN_AREA_SIZE} square meters)"
+        if area_size > MAX_AREA_SIZE:
+            return False, f"Area is too large (maximum {MAX_AREA_SIZE} square meters)"
+
+        return True, None
+    except Exception as e:
+        return False, f"Error validating area bounds: {str(e)}"
+
+def check_memory_usage() -> bool:
+    """Check if current memory usage is within acceptable limits."""
+    memory = psutil.virtual_memory()
+    return memory.percent < MAX_MEMORY_PERCENT
+
+def clear_memory():
+    """Clear memory by running garbage collection."""
+    gc.collect()
+
+@lru_cache(maxsize=32)
+def analyze_osm_area(area_bounds: Dict[str, float]) -> Optional[Dict]:
+    """Analyze the area using OpenStreetMap data with caching."""
+    try:
+        if not check_memory_usage():
+            clear_memory()
+            logger.warning("Memory usage high, cleared cache")
+
         # Create a bounding box
         bbox = box(area_bounds['west'], area_bounds['south'], 
                   area_bounds['east'], area_bounds['north'])
@@ -96,7 +160,7 @@ def analyze_osm_area(area_bounds):
         
         return analysis
     except Exception as e:
-        st.error(f"Error analyzing OSM data: {str(e)}")
+        logger.error(f"Error analyzing OSM data: {str(e)}")
         return None
 
 def clean_json_string(json_str):
@@ -431,9 +495,13 @@ def get_ai_analysis(area_bounds, osm_analysis, user_prompt):
         # Clear the progress message
         progress.empty()
 
-def generate_map(area_bounds, params):
-    """Generate a map using PrettyMaps with given parameters and remove copyright text."""
+def generate_map_parallel(area_bounds: Dict[str, float], params: Dict) -> Optional[io.BytesIO]:
+    """Generate a map using PrettyMaps with given parameters in a separate process."""
     try:
+        if not check_memory_usage():
+            clear_memory()
+            logger.warning("Memory usage high, cleared cache")
+
         # Calculate center point from bounds
         center_lat = (area_bounds['north'] + area_bounds['south']) / 2
         center_lon = (area_bounds['east'] + area_bounds['west']) / 2
@@ -462,10 +530,35 @@ def generate_map(area_bounds, params):
         buf = io.BytesIO()
         plot.fig.savefig(buf, format='png', bbox_inches='tight', dpi=300)
         buf.seek(0)
+        
+        # Clean up
+        plt.close(plot.fig)
         return buf
     except Exception as e:
-        st.error(f"Error generating map: {str(e)}")
+        logger.error(f"Error generating map: {str(e)}")
         return None
+
+def generate_maps_parallel(area_bounds: Dict[str, float], ai_params: List[Dict]) -> List[Optional[io.BytesIO]]:
+    """Generate multiple maps in parallel using ThreadPoolExecutor."""
+    with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        # Submit map generation tasks
+        future_to_map = {
+            executor.submit(generate_map_parallel, area_bounds, params): params
+            for params in ai_params
+        }
+        
+        # Collect results as they complete
+        results = []
+        for future in concurrent.futures.as_completed(future_to_map):
+            params = future_to_map[future]
+            try:
+                result = future.result()
+                results.append(result)
+            except Exception as e:
+                logger.error(f"Error generating map with params {params}: {str(e)}")
+                results.append(None)
+        
+        return results
 
 def main():
     # Load custom CSS
@@ -536,6 +629,12 @@ def main():
                         'west': min(coord[0] for coord in coords)
                     }
                     
+                    # Validate area bounds
+                    is_valid, error_message = validate_area_bounds(area_bounds)
+                    if not is_valid:
+                        progress_message.error(f"❌ {error_message}")
+                        return
+                    
                     # Step 1: Analyzing OSM data
                     progress_message.info("📊 Analyzing OpenStreetMap data...")
                     osm_analysis = analyze_osm_area(area_bounds)
@@ -549,19 +648,20 @@ def main():
                     ai_params = get_ai_analysis(area_bounds, osm_analysis, user_prompt)
                     
                     if ai_params and len(ai_params) == 2:  # Now expecting 2 maps
-                        # Step 3: Generating maps
+                        # Step 3: Generating maps in parallel
                         progress_message.info("🎨 Generating beautiful maps...")
                         
                         # Create two columns for the maps
                         map_cols = st.columns(2)
                         
-                        # Generate maps for each parameter set
-                        for i, params in enumerate(ai_params):
+                        # Generate maps in parallel
+                        map_images = generate_maps_parallel(area_bounds, ai_params)
+                        
+                        # Display generated maps
+                        for i, (map_image, params) in enumerate(zip(map_images, ai_params)):
                             with map_cols[i]:
                                 map_name = params.get('name', f"Map Style {i+1}")
                                 st.subheader(map_name)
-                                progress_message.info(f"Generating {map_name}...")
-                                map_image = generate_map(area_bounds, params)
                                 
                                 if map_image:
                                     # Display the map
@@ -575,6 +675,8 @@ def main():
                                         mime="image/png",
                                         use_container_width=True
                                     )
+                                else:
+                                    st.error(f"Failed to generate {map_name}")
                         
                         # Clear progress message when done
                         progress_message.success("✨ Map generation complete! You can download your maps above.")
