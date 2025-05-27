@@ -16,19 +16,10 @@ from shapely.geometry import box
 import warnings
 import re
 import random
-import hashlib
-from functools import lru_cache
-from concurrent.futures import ThreadPoolExecutor
-import time
-from datetime import timedelta
 
 # Suppress specific warnings
 warnings.filterwarnings('ignore', category=FutureWarning)
 warnings.filterwarnings('ignore', category=UserWarning)
-
-# Configure matplotlib for better performance
-plt.ioff()  # Turn off interactive mode
-plt.style.use('fast')  # Use a faster style
 
 # Load environment variables
 load_dotenv()
@@ -46,20 +37,8 @@ if 'selected_area' not in st.session_state:
 if 'generated_maps' not in st.session_state:
     st.session_state.generated_maps = []
 
-# Cache configuration
-CACHE_TTL = 3600  # 1 hour cache TTL
-
-def get_cache_key(area_bounds, params):
-    """Generate a unique cache key for the map parameters"""
-    key_data = json.dumps({
-        'bounds': area_bounds,
-        'params': params
-    }, sort_keys=True)
-    return hashlib.md5(key_data.encode()).hexdigest()
-
-@st.cache_data(ttl=CACHE_TTL, show_spinner=False)
 def analyze_osm_area(area_bounds):
-    """Analyze the area using OpenStreetMap data with caching"""
+    """Analyze the area using OpenStreetMap data"""
     try:
         # Create a bounding box
         bbox = box(area_bounds['west'], area_bounds['south'], 
@@ -72,22 +51,12 @@ def analyze_osm_area(area_bounds):
             tags={'building': True}
         )
         
-        # Get streets with error handling
-        try:
-            streets = ox.graph_from_bbox(
-                area_bounds['north'], area_bounds['south'],
-                area_bounds['east'], area_bounds['west'],
-                network_type='all'
-            )
-            street_count = len(streets.edges) if hasattr(streets, 'edges') else 0
-            primary_count = len([e for e in streets.edges if streets.edges[e].get('highway') == 'primary']) if hasattr(streets, 'edges') else 0
-            secondary_count = len([e for e in streets.edges if streets.edges[e].get('highway') == 'secondary']) if hasattr(streets, 'edges') else 0
-            residential_count = len([e for e in streets.edges if streets.edges[e].get('highway') == 'residential']) if hasattr(streets, 'edges') else 0
-        except Exception:
-            street_count = 0
-            primary_count = 0
-            secondary_count = 0
-            residential_count = 0
+        # Get streets
+        streets = ox.graph_from_bbox(
+            area_bounds['north'], area_bounds['south'],
+            area_bounds['east'], area_bounds['west'],
+            network_type='all'
+        )
         
         # Get natural features
         natural = ox.geometries_from_bbox(
@@ -96,40 +65,32 @@ def analyze_osm_area(area_bounds):
             tags={'natural': True}
         )
         
-        # Get amenities with error handling
-        try:
-            amenities = ox.geometries_from_bbox(
-                area_bounds['north'], area_bounds['south'],
-                area_bounds['east'], area_bounds['west'],
-                tags={'amenity': True}
-            )
-            commercial_count = len(amenities[amenities['amenity'].isin(['restaurant', 'cafe', 'shop'])]) if not amenities.empty else 0
-            public_count = len(amenities[amenities['amenity'].isin(['school', 'hospital', 'library'])]) if not amenities.empty else 0
-            leisure_count = len(amenities[amenities['amenity'].isin(['sports_centre', 'stadium', 'swimming_pool'])]) if not amenities.empty else 0
-        except Exception:
-            commercial_count = 0
-            public_count = 0
-            leisure_count = 0
+        # Get amenities
+        amenities = ox.geometries_from_bbox(
+            area_bounds['north'], area_bounds['south'],
+            area_bounds['east'], area_bounds['west'],
+            tags={'amenity': True}
+        )
         
         # Analyze the data
         analysis = {
             'area_size': bbox.area * 111319.9,  # Convert to square meters
-            'building_count': len(buildings) if not buildings.empty else 0,
-            'street_count': street_count,
+            'building_count': len(buildings),
+            'street_count': len(streets.edges),
             'natural_features': {
-                'water': len(natural[natural['natural'] == 'water']) if not natural.empty else 0,
-                'wood': len(natural[natural['natural'] == 'wood']) if not natural.empty else 0,
-                'park': len(natural[natural['natural'] == 'park']) if not natural.empty else 0
+                'water': len(natural[natural['natural'] == 'water']),
+                'wood': len(natural[natural['natural'] == 'wood']),
+                'park': len(natural[natural['natural'] == 'park'])
             },
             'amenities': {
-                'commercial': commercial_count,
-                'public': public_count,
-                'leisure': leisure_count
+                'commercial': len(amenities[amenities['amenity'].isin(['restaurant', 'cafe', 'shop'])]),
+                'public': len(amenities[amenities['amenity'].isin(['school', 'hospital', 'library'])]),
+                'leisure': len(amenities[amenities['amenity'].isin(['sports_centre', 'stadium', 'swimming_pool'])])
             },
             'street_types': {
-                'primary': primary_count,
-                'secondary': secondary_count,
-                'residential': residential_count
+                'primary': len([e for e in streets.edges if streets.edges[e].get('highway') == 'primary']),
+                'secondary': len([e for e in streets.edges if streets.edges[e].get('highway') == 'secondary']),
+                'residential': len([e for e in streets.edges if streets.edges[e].get('highway') == 'residential'])
             }
         }
         
@@ -235,9 +196,8 @@ def get_openrouter_api_key():
         raise ValueError("No OpenRouter API keys found in environment variables.")
     return random.choice(keys)
 
-@st.cache_data(ttl=CACHE_TTL, show_spinner=False)
 def get_ai_analysis(area_bounds, osm_analysis, user_prompt):
-    """Get AI analysis for the selected area using OpenRouter API with caching"""
+    """Get AI analysis for the selected area using OpenRouter API"""
     OPENROUTER_API_KEY = get_openrouter_api_key()
     
     system_message = """You are a map visualization expert. Your task is to generate exactly two different map styles for a given area based on the user's description.
@@ -401,6 +361,9 @@ def get_ai_analysis(area_bounds, osm_analysis, user_prompt):
     }
     
     try:
+        # Show progress while waiting for AI response
+        progress = st.empty()
+        
         response = requests.post(
             "https://openrouter.ai/api/v1/chat/completions",
             headers=headers,
@@ -464,31 +427,25 @@ def get_ai_analysis(area_bounds, osm_analysis, user_prompt):
     except Exception as e:
         st.error(f"Error getting AI analysis: {str(e)}")
         return None
+    finally:
+        # Clear the progress message
+        progress.empty()
 
-def clear_memory():
-    """Clear memory after map generation"""
-    import gc
-    gc.collect()
-    plt.close('all')
-
-@st.cache_data(ttl=CACHE_TTL, show_spinner=False)
 def generate_map(area_bounds, params):
-    """Generate a map using PrettyMaps with given parameters and remove copyright text with caching"""
+    """Generate a map using PrettyMaps with given parameters and remove copyright text."""
     try:
         # Calculate center point from bounds
         center_lat = (area_bounds['north'] + area_bounds['south']) / 2
         center_lon = (area_bounds['east'] + area_bounds['west']) / 2
         
-        # Create the plot with optimized settings
+        # Create the plot
         plot = prettymaps.plot(
             (center_lat, center_lon),
             radius=params.get('radius', 1000),
             layers=params.get('layers', {}),
             style=params.get('style', {}),
             figsize=(12, 12),
-            credit={},
-            dpi=300,  # Set DPI for better quality
-            backend='agg'  # Use non-interactive backend
+            credit={}
         )
         
         # Remove copyright/attribution text from the figure
@@ -503,26 +460,12 @@ def generate_map(area_bounds, params):
         
         # Convert plot to image
         buf = io.BytesIO()
-        plot.fig.savefig(
-            buf,
-            format='png',
-            bbox_inches='tight',
-            dpi=300,
-            transparent=False
-        )
+        plot.fig.savefig(buf, format='png', bbox_inches='tight', dpi=300)
         buf.seek(0)
-        
-        # Clear memory
-        clear_memory()
-        
         return buf
     except Exception as e:
         st.error(f"Error generating map: {str(e)}")
         return None
-
-def format_time(seconds):
-    """Format seconds into a readable time string"""
-    return str(timedelta(seconds=round(seconds)))
 
 def main():
     # Load custom CSS
@@ -531,10 +474,6 @@ def main():
         
     st.title("🗺️ PrettyMapAI")
     st.write("Search for a location or draw an area on the map to generate beautiful visualizations!")
-    
-    # Initialize session state for regeneration
-    if 'regenerate' not in st.session_state:
-        st.session_state.regenerate = False
     
     # Create containers with borders
     map_container = st.container(border=True)
@@ -577,9 +516,6 @@ def main():
         
         # Add a prominent button in full width
         if st.button("🎨 Generate PrettyMaps", use_container_width=True):
-            st.session_state.regenerate = True
-        
-        if st.session_state.regenerate:
             if not map_data or not map_data.get('last_active_drawing'):
                 st.error("Please draw an area on the map first!")
             else:
@@ -588,9 +524,7 @@ def main():
                 with progress_container:
                     # Initialize progress message
                     progress_message = progress_container.empty()
-                    
-                    # Start total timer
-                    total_start_time = time.time()
+                    progress_message.info("Starting map generation process...")
                     
                     # Extract bounds from the drawn area (polygon or rectangle)
                     drawn_features = map_data['last_active_drawing']
@@ -603,73 +537,47 @@ def main():
                     }
                     
                     # Step 1: Analyzing OSM data
-                    start_time = time.time()
-                    progress_message.info("Running analyze_osm_area(...)")
+                    progress_message.info("📊 Analyzing OpenStreetMap data...")
                     osm_analysis = analyze_osm_area(area_bounds)
-                    elapsed_time = time.time() - start_time
-                    progress_message.info(f"Running analyze_osm_area(...) - Completed in {format_time(elapsed_time)}")
                     
                     if not osm_analysis:
                         progress_message.error("❌ Failed to analyze area. Please try again.")
                         return
                     
                     # Step 2: Getting AI analysis
-                    start_time = time.time()
-                    progress_message.info("Running get_ai_analysis(...)")
+                    progress_message.info("🤖 Getting AI analysis for map styles...")
                     ai_params = get_ai_analysis(area_bounds, osm_analysis, user_prompt)
-                    elapsed_time = time.time() - start_time
-                    progress_message.info(f"Running get_ai_analysis(...) - Completed in {format_time(elapsed_time)}")
                     
                     if ai_params and len(ai_params) == 2:  # Now expecting 2 maps
                         # Step 3: Generating maps
-                        start_time = time.time()
-                        progress_message.info("Running generate_map(...)")
+                        progress_message.info("🎨 Generating beautiful maps...")
                         
                         # Create two columns for the maps
                         map_cols = st.columns(2)
                         
                         # Generate maps for each parameter set
-                        with ThreadPoolExecutor(max_workers=2) as executor:
-                            future_to_map = {
-                                executor.submit(generate_map, area_bounds, params): (i, params)
-                                for i, params in enumerate(ai_params)
-                            }
-                            
-                            for future in future_to_map:
-                                i, params = future_to_map[future]
-                                with map_cols[i]:
-                                    map_name = params.get('name', f"Map Style {i+1}")
-                                    st.subheader(map_name)
-                                    try:
-                                        image_buffer = future.result()
-                                        if image_buffer:
-                                            # Reset buffer position
-                                            image_buffer.seek(0)
-                                            
-                                            # Display the map
-                                            st.image(image_buffer, use_container_width=True)
-                                            
-                                            # Reset buffer position again for download
-                                            image_buffer.seek(0)
-                                            
-                                            # Add download button
-                                            btn = st.download_button(
-                                                label=f"Download {map_name}",
-                                                data=image_buffer.getvalue(),
-                                                file_name=f"pretty_map_{map_name.lower().replace(' ', '_')}.png",
-                                                mime="image/png",
-                                                use_container_width=True
-                                            )
-                                    except Exception as e:
-                                        st.error(f"Error displaying map {map_name}: {str(e)}")
-                                        st.error(f"Error details: {str(e)}")
+                        for i, params in enumerate(ai_params):
+                            with map_cols[i]:
+                                map_name = params.get('name', f"Map Style {i+1}")
+                                st.subheader(map_name)
+                                progress_message.info(f"Generating {map_name}...")
+                                map_image = generate_map(area_bounds, params)
+                                
+                                if map_image:
+                                    # Display the map
+                                    st.image(map_image, use_container_width=True)
+                                    
+                                    # Add download button
+                                    btn = st.download_button(
+                                        label=f"Download {map_name}",
+                                        data=map_image,
+                                        file_name=f"pretty_map_{map_name.lower().replace(' ', '_')}.png",
+                                        mime="image/png",
+                                        use_container_width=True
+                                    )
                         
-                        elapsed_time = time.time() - start_time
-                        progress_message.info(f"Running generate_map(...) - Completed in {format_time(elapsed_time)}")
-                        
-                        # Calculate and show total elapsed time
-                        total_elapsed_time = time.time() - total_start_time
-                        progress_message.success(f"✨ Map generation complete! Total time: {format_time(total_elapsed_time)}")
+                        # Clear progress message when done
+                        progress_message.success("✨ Map generation complete! You can download your maps above.")
                     else:
                         progress_message.error("❌ Failed to generate map styles. Please try again.")
         else:
