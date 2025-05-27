@@ -16,10 +16,17 @@ from shapely.geometry import box
 import warnings
 import re
 import random
+import hashlib
+from functools import lru_cache
+from concurrent.futures import ThreadPoolExecutor
 
 # Suppress specific warnings
 warnings.filterwarnings('ignore', category=FutureWarning)
 warnings.filterwarnings('ignore', category=UserWarning)
+
+# Configure matplotlib for better performance
+plt.ioff()  # Turn off interactive mode
+plt.style.use('fast')  # Use a faster style
 
 # Load environment variables
 load_dotenv()
@@ -37,8 +44,20 @@ if 'selected_area' not in st.session_state:
 if 'generated_maps' not in st.session_state:
     st.session_state.generated_maps = []
 
+# Cache configuration
+CACHE_TTL = 3600  # 1 hour cache TTL
+
+def get_cache_key(area_bounds, params):
+    """Generate a unique cache key for the map parameters"""
+    key_data = json.dumps({
+        'bounds': area_bounds,
+        'params': params
+    }, sort_keys=True)
+    return hashlib.md5(key_data.encode()).hexdigest()
+
+@st.cache_data(ttl=CACHE_TTL)
 def analyze_osm_area(area_bounds):
-    """Analyze the area using OpenStreetMap data"""
+    """Analyze the area using OpenStreetMap data with caching"""
     try:
         # Create a bounding box
         bbox = box(area_bounds['west'], area_bounds['south'], 
@@ -196,8 +215,9 @@ def get_openrouter_api_key():
         raise ValueError("No OpenRouter API keys found in environment variables.")
     return random.choice(keys)
 
+@st.cache_data(ttl=CACHE_TTL)
 def get_ai_analysis(area_bounds, osm_analysis, user_prompt):
-    """Get AI analysis for the selected area using OpenRouter API"""
+    """Get AI analysis for the selected area using OpenRouter API with caching"""
     OPENROUTER_API_KEY = get_openrouter_api_key()
     
     system_message = """You are a map visualization expert. Your task is to generate exactly two different map styles for a given area based on the user's description.
@@ -431,21 +451,30 @@ def get_ai_analysis(area_bounds, osm_analysis, user_prompt):
         # Clear the progress message
         progress.empty()
 
+def clear_memory():
+    """Clear memory after map generation"""
+    import gc
+    gc.collect()
+    plt.close('all')
+
+@st.cache_data(ttl=CACHE_TTL)
 def generate_map(area_bounds, params):
-    """Generate a map using PrettyMaps with given parameters and remove copyright text."""
+    """Generate a map using PrettyMaps with given parameters and remove copyright text with caching"""
     try:
         # Calculate center point from bounds
         center_lat = (area_bounds['north'] + area_bounds['south']) / 2
         center_lon = (area_bounds['east'] + area_bounds['west']) / 2
         
-        # Create the plot
+        # Create the plot with optimized settings
         plot = prettymaps.plot(
             (center_lat, center_lon),
             radius=params.get('radius', 1000),
             layers=params.get('layers', {}),
             style=params.get('style', {}),
             figsize=(12, 12),
-            credit={}
+            credit={},
+            dpi=300,  # Set DPI for better quality
+            backend='agg'  # Use non-interactive backend
         )
         
         # Remove copyright/attribution text from the figure
@@ -458,10 +487,21 @@ def generate_map(area_bounds, params):
             ):
                 text.set_visible(False)
         
-        # Convert plot to image
+        # Convert plot to image with optimized settings
         buf = io.BytesIO()
-        plot.fig.savefig(buf, format='png', bbox_inches='tight', dpi=300)
+        plot.fig.savefig(
+            buf,
+            format='png',
+            bbox_inches='tight',
+            dpi=300,
+            optimize=True,  # Enable PNG optimization
+            transparent=False
+        )
         buf.seek(0)
+        
+        # Clear memory
+        clear_memory()
+        
         return buf
     except Exception as e:
         st.error(f"Error generating map: {str(e)}")
@@ -556,25 +596,27 @@ def main():
                         map_cols = st.columns(2)
                         
                         # Generate maps for each parameter set
-                        for i, params in enumerate(ai_params):
-                            with map_cols[i]:
-                                map_name = params.get('name', f"Map Style {i+1}")
-                                st.subheader(map_name)
-                                progress_message.info(f"Generating {map_name}...")
-                                map_image = generate_map(area_bounds, params)
-                                
-                                if map_image:
-                                    # Display the map
-                                    st.image(map_image, use_container_width=True)
-                                    
-                                    # Add download button
-                                    btn = st.download_button(
-                                        label=f"Download {map_name}",
-                                        data=map_image,
-                                        file_name=f"pretty_map_{map_name.lower().replace(' ', '_')}.png",
-                                        mime="image/png",
-                                        use_container_width=True
-                                    )
+                        with ThreadPoolExecutor(max_workers=2) as executor:
+                            future_to_map = {
+                                executor.submit(generate_map, area_bounds, params): (i, params)
+                                for i, params in enumerate(ai_params)
+                            }
+                            for future in future_to_map:
+                                i, params = future_to_map[future]
+                                with map_cols[i]:
+                                    map_name = params.get('name', f"Map Style {i+1}")
+                                    st.subheader(map_name)
+                                    map_image = future.result()
+                                    if map_image:
+                                        st.image(map_image, use_container_width=True)
+                                        # Add download button
+                                        btn = st.download_button(
+                                            label=f"Download {map_name}",
+                                            data=map_image,
+                                            file_name=f"pretty_map_{map_name.lower().replace(' ', '_')}.png",
+                                            mime="image/png",
+                                            use_container_width=True
+                                        )
                         
                         # Clear progress message when done
                         progress_message.success("✨ Map generation complete! You can download your maps above.")
