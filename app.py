@@ -539,10 +539,7 @@ def main():
         st.write(f"<style>{f.read()}</style>", unsafe_allow_html=True)
         
     st.title("🗺️ PrettyMapAI")
-    st.write("Search for a location or draw an area on the map to generate beautiful visualizations!")
-    
-    # Add attribution
-    st.caption("Built with [PrettyMaps](https://github.com/chrieke/prettymapp) by [@bipuldey19](https://github.com/bipuldey19)")
+    st.write("Search for a location or draw an area on the map to generate AI assisted [PrettyMap](https://github.com/chrieke/prettymapp)!")
     
     # Create containers with borders
     map_container = st.container(border=True)
