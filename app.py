@@ -389,9 +389,6 @@ def get_ai_analysis(area_bounds, osm_analysis, user_prompt):
     }
     
     try:
-        # Show progress while waiting for AI response
-        progress = st.empty()
-        
         response = requests.post(
             "https://openrouter.ai/api/v1/chat/completions",
             headers=headers,
@@ -455,9 +452,6 @@ def get_ai_analysis(area_bounds, osm_analysis, user_prompt):
     except Exception as e:
         st.error(f"Error getting AI analysis: {str(e)}")
         return None
-    finally:
-        # Clear the progress message
-        progress.empty()
 
 def clear_memory():
     """Clear memory after map generation"""
@@ -584,7 +578,7 @@ def main():
                     }
                     
                     # Step 1: Analyzing OSM data
-                    progress_message.info("📊 Analyzing OpenStreetMap data...")
+                    progress_message.info("Running analyze_osm_area(...)")
                     osm_analysis = analyze_osm_area(area_bounds)
                     
                     if not osm_analysis:
@@ -592,12 +586,12 @@ def main():
                         return
                     
                     # Step 2: Getting AI analysis
-                    progress_message.info("🤖 Getting AI analysis for map styles...")
+                    progress_message.info("Running get_ai_analysis(...)")
                     ai_params = get_ai_analysis(area_bounds, osm_analysis, user_prompt)
                     
                     if ai_params and len(ai_params) == 2:  # Now expecting 2 maps
                         # Step 3: Generating maps
-                        progress_message.info("🎨 Generating beautiful maps...")
+                        progress_message.info("Running generate_map(...)")
                         
                         # Create two columns for the maps
                         map_cols = st.columns(2)
