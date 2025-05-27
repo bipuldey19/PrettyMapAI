@@ -486,8 +486,8 @@ def generate_map_worker(args):
         buf.seek(0)
         return buf
     except Exception as e:
-        st.error(f"Error generating map: {str(e)}")
-        return None
+        # Return error message instead of using st.error
+        return f"Error generating map: {str(e)}"
 
 def generate_maps_parallel(area_bounds, ai_params):
     """Generate multiple maps in parallel using ThreadPoolExecutor"""
@@ -503,7 +503,9 @@ def generate_maps_parallel(area_bounds, ai_params):
         for future in as_completed(future_to_params):
             try:
                 result = future.result()
-                if result:
+                if isinstance(result, str):  # Error message
+                    st.error(result)
+                elif result:  # Successful result
                     results.append(result)
             except Exception as e:
                 st.error(f"Error in map generation: {str(e)}")
@@ -603,7 +605,7 @@ def main():
                         
                         # Display the generated maps
                         for i, (map_image, params) in enumerate(zip(map_images, ai_params)):
-                            if map_image:
+                            if map_image and not isinstance(map_image, str):  # Check if it's not an error message
                                 with map_cols[i]:
                                     map_name = params.get('name', f'Style {i+1}')
                                     st.subheader(map_name)
