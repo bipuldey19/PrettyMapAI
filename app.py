@@ -588,51 +588,52 @@ def main():
                     }
                     
                     # Step 1: Analyzing OSM data
-                    with st.spinner("Running analyze_osm_area(...)"):
-                        osm_analysis = analyze_osm_area(area_bounds)
+                    progress_message.info("Running analyze_osm_area(...)")
+                    osm_analysis = analyze_osm_area(area_bounds)
                     
                     if not osm_analysis:
                         progress_message.error("❌ Failed to analyze area. Please try again.")
                         return
                     
                     # Step 2: Getting AI analysis
-                    with st.spinner("Running get_ai_analysis(...)"):
-                        ai_params = get_ai_analysis(area_bounds, osm_analysis, user_prompt)
+                    progress_message.info("Running get_ai_analysis(...)")
+                    ai_params = get_ai_analysis(area_bounds, osm_analysis, user_prompt)
                     
                     if ai_params and len(ai_params) == 2:  # Now expecting 2 maps
                         # Step 3: Generating maps
-                        with st.spinner("Running generate_map(...)"):
-                            # Create two columns for the maps
-                            map_cols = st.columns(2)
+                        progress_message.info("Running generate_map(...)")
+                        
+                        # Create two columns for the maps
+                        map_cols = st.columns(2)
+                        
+                        # Generate maps for each parameter set
+                        with ThreadPoolExecutor(max_workers=2) as executor:
+                            future_to_map = {
+                                executor.submit(generate_map, area_bounds, params): (i, params)
+                                for i, params in enumerate(ai_params)
+                            }
                             
-                            # Generate maps for each parameter set
-                            with ThreadPoolExecutor(max_workers=2) as executor:
-                                future_to_map = {
-                                    executor.submit(generate_map, area_bounds, params): (i, params)
-                                    for i, params in enumerate(ai_params)
-                                }
-                                
-                                for future in future_to_map:
-                                    i, params = future_to_map[future]
-                                    with map_cols[i]:
-                                        map_name = params.get('name', f"Map Style {i+1}")
-                                        st.subheader(map_name)
-                                        try:
-                                            map_image = future.result()
-                                            if map_image:
-                                                # Display the map
-                                                st.image(map_image, use_container_width=True)
-                                                
-                                                # Add download button
-                                                btn = st.download_button(
-                                                    label=f"Download {map_name}",
-                                                    data=map_image.getvalue(),
-                                                    file_name=f"pretty_map_{map_name.lower().replace(' ', '_')}.png",
-                                                    mime="image/png",
-                                                    use_container_width=True
-                                                )
-                                        except Exception as e:
-                                            st.error(f"Error displaying map {map_name}: {str(e)}")
+                            for future in future_to_map:
+                                i, params = future_to_map[future]
+                                with map_cols[i]:
+                                    map_name = params.get('name', f"Map Style {i+1}")
+                                    st.subheader(map_name)
+                                    try:
+                                        map_image = future.result()
+                                        if map_image:
+                                            # Display the map
+                                            st.image(map_image, use_container_width=True)
+                                            
+                                            # Add download button
+                                            btn = st.download_button(
+                                                label=f"Download {map_name}",
+                                                data=map_image.getvalue(),
+                                                file_name=f"pretty_map_{map_name.lower().replace(' ', '_')}.png",
+                                                mime="image/png",
+                                                use_container_width=True
+                                            )
+                                    except Exception as e:
+                                        st.error(f"Error displaying map {map_name}: {str(e)}")
                         
                         # Clear progress message when done
                         progress_message.success("✨ Map generation complete! You can download your maps above.")
