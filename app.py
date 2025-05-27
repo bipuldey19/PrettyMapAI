@@ -440,13 +440,31 @@ def generate_map_worker(args):
         center_lat = (area_bounds['north'] + area_bounds['south']) / 2
         center_lon = (area_bounds['east'] + area_bounds['west']) / 2
         
+        # Get radius from params or calculate from bounds
+        if params.get('circle', False):
+            # If circle is True, use the specified radius or calculate from bounds
+            radius = params.get('radius', None)
+            if radius is None:
+                # Calculate radius from bounds if not specified
+                lat_diff = abs(area_bounds['north'] - area_bounds['south'])
+                lon_diff = abs(area_bounds['east'] - area_bounds['west'])
+                radius = max(lat_diff, lon_diff) * 111319.9 / 2  # Convert to meters
+        else:
+            # If not circular, use a large radius to cover the area
+            radius = None
+        
         # Create the plot
         plot = prettymaps.plot(
             (center_lat, center_lon),
-            radius=params.get('radius', 1000),
+            radius=radius,
             layers=params.get('layers', {}),
             style=params.get('style', {}),
-            figsize=(12, 12),
+            figsize=params.get('figsize', (12, 12)),
+            circle=params.get('circle', False),
+            dilate=params.get('dilate', 0),
+            scale_x=params.get('scale_x', 1),
+            scale_y=params.get('scale_y', 1),
+            adjust_aspect_ratio=params.get('adjust_aspect_ratio', True),
             credit={}
         )
         
