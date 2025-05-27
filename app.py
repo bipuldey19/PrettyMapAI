@@ -453,7 +453,7 @@ def generate_map_worker(args):
             # If not circular, use a large radius to cover the area
             radius = None
         
-        # Create the plot
+        # Create the plot with only supported parameters
         plot = prettymaps.plot(
             (center_lat, center_lon),
             radius=radius,
@@ -462,9 +462,6 @@ def generate_map_worker(args):
             figsize=params.get('figsize', (12, 12)),
             circle=params.get('circle', False),
             dilate=params.get('dilate', 0),
-            scale_x=params.get('scale_x', 1),
-            scale_y=params.get('scale_y', 1),
-            adjust_aspect_ratio=params.get('adjust_aspect_ratio', True),
             credit={}
         )
         
