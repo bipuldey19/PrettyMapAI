@@ -629,12 +629,6 @@ def main():
                         'west': min(coord[0] for coord in coords)
                     }
                     
-                    # Validate area bounds
-                    is_valid, error_message = validate_area_bounds(area_bounds)
-                    if not is_valid:
-                        progress_message.error(f"❌ {error_message}")
-                        return
-                    
                     # Step 1: Analyzing OSM data
                     progress_message.info("📊 Analyzing OpenStreetMap data...")
                     osm_analysis = analyze_osm_area(area_bounds)
