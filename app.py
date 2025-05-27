@@ -16,7 +16,7 @@ from shapely.geometry import box
 import warnings
 import re
 import random
-from multiprocessing import Pool, cpu_count
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Suppress specific warnings
 warnings.filterwarnings('ignore', category=FutureWarning)
@@ -470,14 +470,24 @@ def generate_map_worker(args):
         return None
 
 def generate_maps_parallel(area_bounds, ai_params):
-    """Generate multiple maps in parallel"""
-    # Create a pool of workers
-    num_workers = min(len(ai_params), cpu_count())
-    with Pool(processes=num_workers) as pool:
-        # Prepare arguments for each map generation task
-        args = [(area_bounds, params) for params in ai_params]
-        # Generate maps in parallel
-        results = pool.map(generate_map_worker, args)
+    """Generate multiple maps in parallel using ThreadPoolExecutor"""
+    results = []
+    with ThreadPoolExecutor(max_workers=len(ai_params)) as executor:
+        # Submit all map generation tasks
+        future_to_params = {
+            executor.submit(generate_map_worker, (area_bounds, params)): params 
+            for params in ai_params
+        }
+        
+        # Collect results as they complete
+        for future in as_completed(future_to_params):
+            try:
+                result = future.result()
+                if result:
+                    results.append(result)
+            except Exception as e:
+                st.error(f"Error in map generation: {str(e)}")
+    
     return results
 
 def main():
