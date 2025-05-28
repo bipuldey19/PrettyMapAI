@@ -1,10 +1,10 @@
 # PrettyMapAI
 
-A Streamlit application that combines PrettyMaps with AI-powered map generation. Draw an area on the map and get beautiful visualizations generated using AI analysis.
+A Streamlit application that combines PrettyMapp with AI-powered map generation. Draw an area on the map and get beautiful visualizations generated using AI analysis.
 
 ## Credits
 
-This application is built on top of the amazing [PrettyMaps](https://github.com/chrieke/prettymapp) library by [@chrieke](https://github.com/chrieke). All credit for the original map generation functionality goes to them. This project adds AI-powered style generation on top of their excellent work.
+This application is built on top of the amazing [PrettyMapp](https://github.com/chrieke/prettymapp) library by [@chrieke](https://github.com/chrieke). All credit for the original map generation functionality goes to them. This project adds AI-powered style generation on top of their excellent work.
 
 ## Features
 
