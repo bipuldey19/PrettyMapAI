@@ -1,6 +1,10 @@
 # 🗺️ PrettyMapAI
 
-PrettyMapAI is an AI-powered map visualization tool that generates beautiful, artistic maps using OpenStreetMap data. Built on top of the [PrettyMapp](https://github.com/chrieke/prettymapp) library, it adds AI-driven style generation to create unique and visually appealing maps.
+A Streamlit application that combines PrettyMaps with AI-powered map generation. Draw an area on the map and get beautiful visualizations generated using AI analysis.
+
+## Credits
+
+This application is built on top of the amazing [PrettyMaps](https://github.com/chrieke/prettymapp) library by [@chrieke](https://github.com/chrieke). All credit for the original map generation functionality goes to them. This project adds AI-powered style generation on top of their excellent work.
 
 ## ✨ Features
 
@@ -77,18 +81,16 @@ The AI can control various aspects of the map style:
 - Map shape (circular or rectangular)
 - Title and text settings (when requested)
 
-## 🤝 Contributing
+## Deployment
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+This application can be deployed on any platform that supports Streamlit apps, such as:
+- Streamlit Cloud
+- Heroku
+- AWS
+- Google Cloud Platform
 
-## 📝 License
+Make sure to set the `OPENROUTER_API_KEY_1`, `OPENROUTER_API_KEY_2`, and `OPENROUTER_API_KEY_3` environment variables in your deployment environment.
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+## License
 
-## 🙏 Credits
-
-This project is built on top of the [PrettyMaps](https://github.com/chrieke/prettymapp) library by [@chrieke](https://github.com/chrieke). We extend our thanks to the original author for creating such a beautiful map visualization tool.
-
-## 📞 Support
-
-If you encounter any issues or have questions, please open an issue in the GitHub repository. 
+MIT License 
