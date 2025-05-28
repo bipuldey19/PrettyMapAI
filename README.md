@@ -4,7 +4,7 @@ A Streamlit application that combines PrettyMaps with AI-powered map generation.
 
 ## Credits
 
-This application is built on top of the amazing [PrettyMaps](https://github.com/chrieke/prettymapp) library by [@chrieke](https://github.com/chrieke). All credit for the original map generation functionality goes to them. This project adds AI-powered style generation on top of their excellent work.
+This application is built on top of the amazing [PrettyMapp](https://github.com/chrieke/prettymapp) library by [@chrieke](https://github.com/chrieke). All credit for the original map generation functionality goes to them. This project adds AI-powered style generation on top of their excellent work.
 
 ## ✨ Features
 
